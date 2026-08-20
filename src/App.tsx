@@ -23,7 +23,6 @@ import {
 import {
   INITIAL_ALERTS,
   INITIAL_EVENTS,
-  INITIAL_REMINDERS,
 } from './data/initialData';
 
 import { BookOpen, Lock, X } from 'lucide-react';
@@ -139,57 +138,80 @@ export default function App() {
   });
 
   // =========================================================
-  // REMINDERS — LOCAL STORAGE
+  // REMINDERS — SUPABASE
   // =========================================================
 
-  const [reminders, setReminders] =
-  useState<ScheduledReminder[]>([]);
+  const [reminders, setReminders] = useState<ScheduledReminder[]>([]);
+  const [remindersLoading, setRemindersLoading] = useState(true);
 
-const [remindersLoading, setRemindersLoading] =
-  useState(true);
+  const loadReminders = async () => {
+    setRemindersLoading(true);
 
-const loadReminders = async () => {
-  setRemindersLoading(true);
+    const { data, error } = await supabase
+      .from('reminders')
+      .select('id, payload')
+      .order('created_at', { ascending: true });
 
-  const migrateLocalRemindersToSupabase =
-  async () => {
-    const saved = localStorage.getItem(
-      'lazuardi_clean_reminders'
+    if (error) {
+      console.error(
+        'Gagal mengambil reminder dari Supabase:',
+        error
+      );
+
+      setRemindersLoading(false);
+      return;
+    }
+
+    const loadedReminders: ScheduledReminder[] = (data ?? []).map(
+      (row) => row.payload as ScheduledReminder
     );
+
+    setReminders(loadedReminders);
+    setRemindersLoading(false);
+  };
+
+  const migrateLocalRemindersToSupabase = async () => {
+    const saved = localStorage.getItem('lazuardi_clean_reminders');
 
     if (!saved) return;
 
-    let localReminders: ScheduledReminder[] =
-      [];
+    let localReminders: ScheduledReminder[] = [];
 
     try {
       localReminders = JSON.parse(saved);
     } catch {
+      console.error('Data reminder lama di localStorage tidak valid.');
       return;
     }
 
     if (localReminders.length === 0) {
+      localStorage.removeItem('lazuardi_clean_reminders');
       return;
     }
 
-    const { data: existing } =
-      await supabase
-        .from('reminders')
-        .select('id')
-        .limit(1);
+    const { data: existing, error: existingError } = await supabase
+      .from('reminders')
+      .select('id')
+      .limit(1);
 
-    // Jangan migrasi kalau Supabase sudah berisi data
+    if (existingError) {
+      console.error(
+        'Gagal mengecek reminder Supabase sebelum migrasi:',
+        existingError
+      );
+      return;
+    }
+
+    // Jika Supabase sudah memiliki reminder, jangan menimpa data yang ada.
     if (existing && existing.length > 0) {
       return;
     }
 
-    const rows = localReminders.map(
-      (reminder) => ({
-        id: reminder.id,
-        payload: reminder,
-        updated_at: new Date().toISOString(),
-      })
-    );
+    const rows = localReminders.map((reminder) => ({
+      id: reminder.id,
+      payload: reminder,
+      updated_at: new Date().toISOString(),
+    }));
 
     const { error } = await supabase
       .from('reminders')
@@ -198,51 +220,20 @@ const loadReminders = async () => {
       });
 
     if (error) {
-      console.error(
-        'Migrasi reminder gagal:',
-        error
-      );
+      console.error('Migrasi reminder gagal:', error);
       return;
     }
 
-    localStorage.removeItem(
-      'lazuardi_clean_reminders'
-    );
-
-    await loadReminders();
+    localStorage.removeItem('lazuardi_clean_reminders');
 
     console.log(
       'Reminder lama berhasil dipindahkan ke Supabase.'
     );
   };
 
-  const { data, error } = await supabase
-    .from('reminders')
-    .select('id, payload')
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    console.error(
-      'Gagal mengambil reminder dari Supabase:',
-      error
-    );
-
-    setRemindersLoading(false);
-    return;
-  }
-
-  const loadedReminders: ScheduledReminder[] =
-    (data ?? []).map(
-      (row) => row.payload as ScheduledReminder
-    );
-
-  setReminders(loadedReminders);
-  setRemindersLoading(false);
-};
-
-useEffect(() => {
-  void loadReminders();
-}, []);
+  useEffect(() => {
+    void loadReminders();
+  }, []);
 
   // =========================================================
   // GOOGLE CALENDAR
@@ -360,16 +351,15 @@ useEffect(() => {
     } as AdminUser;
 
     setAdminUser(userForApp);
-setAdminAuthLoading(false);
+    setAdminAuthLoading(false);
 
-await loadCirculars();
-
-await migrateLocalRemindersToSupabase();
-await loadReminders();
-    
-    // Admin boleh melihat semua informasi sesuai RLS,
-    // termasuk jika nanti ada draft.
+    // Admin boleh melihat semua informasi sesuai RLS.
     await loadCirculars();
+
+    // Migrasikan reminder lama dari browser admin hanya jika
+    // tabel Supabase masih kosong, lalu muat reminder terbaru.
+    await migrateLocalRemindersToSupabase();
+    await loadReminders();
   };
 
   useEffect(() => {
@@ -471,7 +461,9 @@ await loadReminders();
     setIsLoginModalOpen(false);
     setActiveView('admin');
 
+    await migrateLocalRemindersToSupabase();
     await loadCirculars();
+    await loadReminders();
   };
 
   // =========================================================
@@ -491,6 +483,7 @@ await loadReminders();
     }
 
     await loadCirculars();
+    await loadReminders();
   };
 
   // =========================================================
@@ -1204,9 +1197,8 @@ await loadReminders();
                   setAlerts
                 }
                 onUpdateReminders={(nextReminders) => {
-  void handleUpdateReminders(nextReminders);
-}}
-                }
+                  void handleUpdateReminders(nextReminders);
+                }}
                 onAddEvent={(newEvent) =>
                   setEvents((prev) => [
                     newEvent,
