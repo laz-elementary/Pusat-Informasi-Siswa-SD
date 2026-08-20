@@ -1,209 +1,471 @@
-import React, { useState } from 'react';
-import { 
-  Bell, Calendar, Clock, MapPin, Users, CheckCircle, Sparkles, ChevronRight, X 
+import React from 'react';
+import {
+  BellRing,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  MapPin,
+  Users,
 } from 'lucide-react';
+
 import { ScheduledReminder } from '../types';
 
 interface ScheduledReminderBannerProps {
   reminders: ScheduledReminder[];
 }
 
-const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const DAY_NAMES = [
+  'Minggu',
+  'Senin',
+  'Selasa',
+  'Rabu',
+  'Kamis',
+  'Jumat',
+  'Sabtu',
+];
 
-export const ScheduledReminderBanner: React.FC<ScheduledReminderBannerProps> = ({
-  reminders,
-}) => {
-  const actualDay = new Date().getDay(); // 0-6
-  const actualDate = new Date().getDate(); // 1-31
+const normalizeText = (value: unknown) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase();
 
-  // Allow simulating day to test Friday reminder easily
-  const [simulatedDay, setSimulatedDay] = useState<number | null>(null);
-  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+const getJakartaNow = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+  }).formatToParts(new Date());
 
-  const activeDay = simulatedDay !== null ? simulatedDay : actualDay;
+  const getPart = (type: string) =>
+    parts.find((part) => part.type === type)?.value ?? '';
 
-  // Filter reminders active for the current/simulated day
-  const activeReminders = reminders.filter((rem) => {
-    if (!rem.active || dismissedIds.includes(rem.id)) return false;
+  const year = Number(getPart('year'));
+  const month = Number(getPart('month'));
+  const day = Number(getPart('day'));
 
-    if (rem.recurrence === 'always') return true;
+  const weekdayShort = getPart('weekday').toLowerCase();
 
-    if (rem.recurrence === 'daily') {
-      if (rem.daysOfWeek && rem.daysOfWeek.length > 0) {
-        return rem.daysOfWeek.includes(activeDay);
-      }
-      return true;
+  const weekdayMap: Record<string, number> = {
+    sun: 0,
+    mon: 1,
+    tue: 2,
+    wed: 3,
+    thu: 4,
+    fri: 5,
+    sat: 6,
+  };
+
+  const weekday = weekdayMap[weekdayShort] ?? new Date().getDay();
+
+  return {
+    year,
+    month,
+    day,
+    weekday,
+    dateKey: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(
+      2,
+      '0'
+    )}`,
+  };
+};
+
+const toDateKey = (value: unknown): string => {
+  if (!value) return '';
+
+  const raw = String(value).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return raw.slice(0, 10);
+  }
+
+  const parsed = new Date(raw);
+
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(parsed);
+};
+
+const normalizeDayValue = (value: unknown): number | null => {
+  if (typeof value === 'number' && value >= 0 && value <= 6) {
+    return value;
+  }
+
+  const raw = normalizeText(value);
+
+  const numeric = Number(raw);
+  if (!Number.isNaN(numeric) && numeric >= 0 && numeric <= 6) {
+    return numeric;
+  }
+
+  const dayMap: Record<string, number> = {
+    minggu: 0,
+    sunday: 0,
+    sun: 0,
+
+    senin: 1,
+    monday: 1,
+    mon: 1,
+
+    selasa: 2,
+    tuesday: 2,
+    tue: 2,
+
+    rabu: 3,
+    wednesday: 3,
+    wed: 3,
+
+    kamis: 4,
+    thursday: 4,
+    thu: 4,
+
+    jumat: 5,
+    "jum'at": 5,
+    friday: 5,
+    fri: 5,
+
+    sabtu: 6,
+    saturday: 6,
+    sat: 6,
+  };
+
+  return dayMap[raw] ?? null;
+};
+
+const getReminderField = (reminder: any, keys: string[]) => {
+  for (const key of keys) {
+    if (
+      reminder?.[key] !== undefined &&
+      reminder?.[key] !== null &&
+      reminder?.[key] !== ''
+    ) {
+      return reminder[key];
+    }
+  }
+
+  return undefined;
+};
+
+const isReminderActive = (reminder: any) => {
+  if (reminder?.isActive === false) return false;
+  if (reminder?.active === false) return false;
+  if (reminder?.enabled === false) return false;
+
+  const status = normalizeText(reminder?.status);
+
+  if (
+    ['inactive', 'nonaktif', 'disabled', 'off', 'draft'].includes(status)
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+const isReminderForToday = (
+  reminder: ScheduledReminder,
+  today: ReturnType<typeof getJakartaNow>
+) => {
+  const item = reminder as any;
+
+  if (!isReminderActive(item)) return false;
+
+  const startDate = toDateKey(
+    getReminderField(item, ['startDate', 'start_date'])
+  );
+
+  const endDate = toDateKey(
+    getReminderField(item, ['endDate', 'end_date'])
+  );
+
+  if (startDate && today.dateKey < startDate) return false;
+  if (endDate && today.dateKey > endDate) return false;
+
+  const recurrence = normalizeText(
+    getReminderField(item, [
+      'recurrenceType',
+      'recurrence',
+      'repeat',
+      'frequency',
+      'scheduleType',
+    ])
+  );
+
+  const specificDate = toDateKey(
+    getReminderField(item, [
+      'date',
+      'scheduledDate',
+      'targetDate',
+      'reminderDate',
+    ])
+  );
+
+  if (
+    recurrence === 'always' ||
+    recurrence === 'daily' ||
+    recurrence === 'setiap hari'
+  ) {
+    return true;
+  }
+
+  if (recurrence === 'weekly' || recurrence === 'mingguan') {
+    const rawDays = getReminderField(item, [
+      'daysOfWeek',
+      'weekDays',
+      'weekdays',
+      'days',
+      'dayOfWeek',
+      'weekday',
+      'weeklyDay',
+    ]);
+
+    const days = Array.isArray(rawDays) ? rawDays : [rawDays];
+
+    return days
+      .map(normalizeDayValue)
+      .filter((day): day is number => day !== null)
+      .includes(today.weekday);
+  }
+
+  if (recurrence === 'monthly' || recurrence === 'bulanan') {
+    const rawDay = getReminderField(item, [
+      'dayOfMonth',
+      'dateOfMonth',
+      'monthlyDay',
+    ]);
+
+    const dayOfMonth = Number(rawDay);
+
+    if (!Number.isNaN(dayOfMonth) && dayOfMonth > 0) {
+      return dayOfMonth === today.day;
     }
 
-    if (rem.recurrence === 'weekly') {
-      return rem.daysOfWeek?.includes(activeDay);
-    }
-
-    if (rem.recurrence === 'monthly') {
-      return rem.dayOfMonth === actualDate;
+    if (specificDate) {
+      return Number(specificDate.slice(8, 10)) === today.day;
     }
 
     return false;
-  });
+  }
 
-  const handleDismiss = (id: string) => {
-    setDismissedIds((prev) => [...prev, id]);
-  };
+  if (specificDate) {
+    return specificDate === today.dateKey;
+  }
+
+  const rawDays = getReminderField(item, [
+    'daysOfWeek',
+    'weekDays',
+    'weekdays',
+    'days',
+    'dayOfWeek',
+    'weekday',
+  ]);
+
+  if (rawDays !== undefined) {
+    const days = Array.isArray(rawDays) ? rawDays : [rawDays];
+
+    return days
+      .map(normalizeDayValue)
+      .filter((day): day is number => day !== null)
+      .includes(today.weekday);
+  }
+
+  // Jika admin membuat reminder tanpa aturan hari/tanggal,
+  // reminder dianggap berlaku setiap hari selama statusnya aktif.
+  return true;
+};
+
+const asDisplayText = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).join(', ');
+  }
+
+  return String(value ?? '').trim();
+};
+
+const getRecurrenceLabel = (
+  reminder: ScheduledReminder,
+  dayName: string
+) => {
+  const item = reminder as any;
+
+  const recurrence = normalizeText(
+    getReminderField(item, [
+      'recurrenceType',
+      'recurrence',
+      'repeat',
+      'frequency',
+      'scheduleType',
+    ])
+  );
+
+  if (recurrence === 'weekly' || recurrence === 'mingguan') {
+    return `Mingguan · Setiap ${dayName}`;
+  }
+
+  if (recurrence === 'monthly' || recurrence === 'bulanan') {
+    return 'Pengingat Bulanan';
+  }
+
+  if (recurrence === 'daily' || recurrence === 'setiap hari') {
+    return 'Pengingat Harian';
+  }
+
+  if (recurrence === 'always') {
+    return 'Pengingat Aktif';
+  }
+
+  return `Pengingat ${dayName}`;
+};
+
+export const ScheduledReminderBanner: React.FC<
+  ScheduledReminderBannerProps
+> = ({ reminders }) => {
+  const today = getJakartaNow();
+  const todayName = DAY_NAMES[today.weekday];
+
+  const todayReminders = (reminders ?? []).filter((reminder) =>
+    isReminderForToday(reminder, today)
+  );
 
   return (
-    <div className="space-y-2">
-      {/* Simulation Bar for Testing / Checking Day-Specific Reminders */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-0.5 text-xs text-slate-500">
-        <div className="flex items-center gap-1.5 font-medium">
-          <Calendar className="w-3.5 h-3.5 text-blue-900" />
-          <span>
-            Hari Aktif: <strong className="text-slate-800">{DAY_NAMES[activeDay]}</strong>
-          </span>
-          {simulatedDay !== null && (
-            <span className="text-[10px] bg-amber-100 text-amber-900 px-2 py-0.2 rounded-full font-bold border border-amber-300">
-              (Mode Simulasi Hari)
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1">
-          <span className="text-[11px] text-slate-400 mr-1 hidden sm:inline">Uji Tampilan:</span>
-          <button
-            onClick={() => setSimulatedDay(null)}
-            className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-colors ${
-              simulatedDay === null
-                ? 'bg-blue-900 text-white'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-            }`}
-          >
-            Hari Ini ({DAY_NAMES[actualDay]})
-          </button>
-          <button
-            onClick={() => setSimulatedDay(5)}
-            className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold transition-colors ${
-              simulatedDay === 5
-                ? 'bg-amber-500 text-slate-950 ring-1 ring-amber-600'
-                : 'bg-amber-100 hover:bg-amber-200 text-amber-900'
-            }`}
-            title="Coba lihat pengingat khusus hari Jumat"
-          >
-            🔔 Hari Jumat (Pos 3)
-          </button>
-          <button
-            onClick={() => setSimulatedDay(1)}
-            className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-colors ${
-              simulatedDay === 1
-                ? 'bg-blue-900 text-white'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-            }`}
-          >
-            Senin
-          </button>
-        </div>
+    <section className="space-y-3">
+      <div className="flex items-center gap-2 text-sm text-slate-600">
+        <CalendarDays className="w-4 h-4 text-blue-900" />
+        <span>
+          Hari Aktif:{' '}
+          <strong className="text-slate-900">{todayName}</strong>
+        </span>
       </div>
 
-      {/* Render Active Reminders */}
-      {activeReminders.length > 0 ? (
-        activeReminders.map((rem) => {
-          const isAmber = rem.colorTheme === 'amber' || rem.priority === 'penting';
-          return (
-            <div
-              key={rem.id}
-              className={`rounded-2xl p-4 sm:p-5 border transition-all shadow-sm relative overflow-hidden ${
-                isAmber
-                  ? 'bg-amber-50 border-amber-300 text-amber-950 ring-1 ring-amber-400/40'
-                  : 'bg-blue-50 border-blue-200 text-blue-950'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3.5">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 mt-0.5 shadow-xs ${
-                      isAmber
-                        ? 'bg-amber-500 text-slate-950 border border-amber-600/30'
-                        : 'bg-blue-600 text-white'
-                    }`}
-                  >
-                    <Bell className="w-5 h-5 animate-bounce" />
+      {todayReminders.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+
+          <p className="text-sm text-slate-600">
+            Tidak ada pengingat khusus untuk hari {todayName}.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {todayReminders.map((reminder, index) => {
+            const item = reminder as any;
+
+            const title = asDisplayText(
+              getReminderField(item, [
+                'title',
+                'name',
+                'label',
+                'reminderTitle',
+              ])
+            );
+
+            const message = asDisplayText(
+              getReminderField(item, [
+                'message',
+                'description',
+                'content',
+                'note',
+                'notes',
+              ])
+            );
+
+            const time = asDisplayText(
+              getReminderField(item, [
+                'time',
+                'reminderTime',
+                'startTime',
+                'scheduledTime',
+              ])
+            );
+
+            const location = asDisplayText(
+              getReminderField(item, [
+                'location',
+                'locationText',
+                'place',
+              ])
+            );
+
+            const audience = asDisplayText(
+              getReminderField(item, [
+                'gradeLevels',
+                'targetGrades',
+                'grades',
+                'targetClasses',
+                'classes',
+                'target',
+                'audience',
+              ])
+            );
+
+            const id =
+              asDisplayText(item?.id) ||
+              `${today.dateKey}-${index}`;
+
+            return (
+              <article
+                key={id}
+                className="bg-amber-50 border border-amber-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0">
+                    <BellRing className="w-5 h-5" />
                   </div>
 
-                  <div className="space-y-1.5">
-                    {/* Header tags */}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={`text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
-                          isAmber
-                            ? 'bg-amber-200/80 text-amber-900 border-amber-300'
-                            : 'bg-blue-200/80 text-blue-900 border-blue-300'
-                        }`}
-                      >
-                        {rem.recurrence === 'weekly'
-                          ? `Pengingat Khusus ${DAY_NAMES[activeDay]}`
-                          : 'Pengingat Harian'}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                      <span className="inline-flex items-center rounded-full border border-amber-300 bg-white px-2.5 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wide text-amber-800">
+                        {getRecurrenceLabel(reminder, todayName)}
                       </span>
 
-                      {rem.targetClass && (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white text-slate-800 border border-slate-200">
-                          {rem.targetClass}
-                        </span>
-                      )}
-
-                      {rem.timeInfo && (
-                        <span className="text-[11px] font-medium text-slate-600 flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-500" />
-                          {rem.timeInfo}
+                      {audience && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] sm:text-xs font-semibold text-slate-600">
+                          <Users className="w-3.5 h-3.5" />
+                          {audience}
                         </span>
                       )}
                     </div>
 
-                    {/* Title */}
-                    <h3 className="font-bold text-base sm:text-lg text-slate-950 leading-snug">
-                      {rem.title}
+                    <h3 className="font-extrabold text-slate-900 text-sm sm:text-base leading-snug">
+                      {title || 'Pengingat Sekolah'}
                     </h3>
 
-                    {/* Description */}
-                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed max-w-3xl">
-                      {rem.message}
-                    </p>
+                    {message && (
+                      <p className="mt-1 text-sm text-slate-700 leading-relaxed">
+                        {message}
+                      </p>
+                    )}
 
-                    {/* Location or Action pill */}
-                    {rem.locationInfo && (
-                      <div className="pt-1 flex items-center gap-1 text-xs font-bold text-slate-900">
-                        <MapPin className="w-4 h-4 text-amber-600" />
-                        <span>Lokasi / Titik Jemput: </span>
-                        <span className="bg-white px-2 py-0.5 rounded-lg border border-amber-300 text-amber-900">
-                          {rem.locationInfo}
-                        </span>
+                    {(time || location) && (
+                      <div className="flex flex-wrap gap-x-5 gap-y-2 mt-3 text-xs sm:text-sm">
+                        {time && (
+                          <div className="flex items-center gap-1.5 text-slate-600">
+                            <Clock3 className="w-4 h-4 text-blue-900" />
+                            <span>{time} WIB</span>
+                          </div>
+                        )}
+
+                        {location && (
+                          <div className="flex items-center gap-1.5 text-slate-600">
+                            <MapPin className="w-4 h-4 text-amber-700" />
+                            <span>{location}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
-
-                <button
-                  onClick={() => handleDismiss(rem.id)}
-                  title="Tutup pengingat ini"
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-black/5 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          );
-        })
-      ) : (
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-500 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-emerald-600" />
-            <span>Tidak ada pengingat khusus penjemputan untuk hari {DAY_NAMES[activeDay]}.</span>
-          </div>
-          <button
-            onClick={() => setSimulatedDay(5)}
-            className="text-blue-900 font-bold hover:underline"
-          >
-            Lihat contoh pengingat Jumat (Pos 3) &rarr;
-          </button>
+              </article>
+            );
+          })}
         </div>
       )}
-    </div>
+    </section>
   );
 };
