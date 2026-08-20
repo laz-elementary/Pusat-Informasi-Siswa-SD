@@ -1,4 +1,4 @@
-import { supabase } from './lib/supabase';
+import { supabase } from './src/lib/supabase';
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { EmergencyBanner } from './components/EmergencyBanner';
