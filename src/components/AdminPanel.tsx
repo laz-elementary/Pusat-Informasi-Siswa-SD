@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Plus, Edit, Trash2, Pin,
   FileText, ExternalLink, Eye, ShieldCheck,
@@ -24,6 +24,32 @@ interface AdminPanelProps {
   adminUser?: AdminUser | null;
   onLogout?: () => void;
 }
+
+
+const CIRCULAR_DRAFT_STORAGE_KEY = 'lazuardi_admin_circular_draft_v1';
+
+interface CircularDraftSnapshot {
+  isOpen: boolean;
+  editingCircularId: string | null;
+  title: string;
+  nomor: string;
+  grades: string[];
+  publishDate: string;
+  effectiveDate: string;
+  gdriveLink: string;
+  urgency: 'normal' | 'penting' | 'segera';
+}
+
+const readCircularDraft = (): CircularDraftSnapshot | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.localStorage.getItem(CIRCULAR_DRAFT_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as CircularDraftSnapshot) : null;
+  } catch {
+    return null;
+  }
+};
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   circulars,
@@ -63,17 +89,95 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }
 
   // New Circular Form State
-  const [showAddModal, setShowAddModal] = useState(false);
+  // Draft form disimpan sementara agar tidak hilang jika iframe/halaman
+  // ter-refresh saat admin berpindah tab browser.
+  const [restoredCircularDraft] = useState<CircularDraftSnapshot | null>(() =>
+    readCircularDraft()
+  );
+
+  const [showAddModal, setShowAddModal] = useState(
+    () => restoredCircularDraft?.isOpen ?? false
+  );
+
   const [editingCircular, setEditingCircular] = useState<CircularLetter | null>(null);
 
-  // Form inputs - simplified and clean
-  const [formTitle, setFormTitle] = useState('');
-  const [formNomor, setFormNomor] = useState('');
-  const [formGrades, setFormGrades] = useState<string[]>(['Semua Kelas']);
-  const [formPublishDate, setFormPublishDate] = useState(new Date().toISOString().split('T')[0]);
-  const [formEffectiveDate, setFormEffectiveDate] = useState('');
-  const [formGdriveLink, setFormGdriveLink] = useState('');
-  const [formUrgency, setFormUrgency] = useState<'normal' | 'penting' | 'segera'>('normal');
+  // Form inputs - restore dari draft jika ada
+  const [formTitle, setFormTitle] = useState(
+    () => restoredCircularDraft?.title ?? ''
+  );
+  const [formNomor, setFormNomor] = useState(
+    () => restoredCircularDraft?.nomor ?? ''
+  );
+  const [formGrades, setFormGrades] = useState<string[]>(
+    () => restoredCircularDraft?.grades ?? ['Semua Kelas']
+  );
+  const [formPublishDate, setFormPublishDate] = useState(
+    () =>
+      restoredCircularDraft?.publishDate ??
+      new Date().toISOString().split('T')[0]
+  );
+  const [formEffectiveDate, setFormEffectiveDate] = useState(
+    () => restoredCircularDraft?.effectiveDate ?? ''
+  );
+  const [formGdriveLink, setFormGdriveLink] = useState(
+    () => restoredCircularDraft?.gdriveLink ?? ''
+  );
+  const [formUrgency, setFormUrgency] = useState<
+    'normal' | 'penting' | 'segera'
+  >(() => restoredCircularDraft?.urgency ?? 'normal');
+
+  // Jika draft yang dipulihkan adalah mode Edit, hubungkan kembali ke surat aslinya.
+  useEffect(() => {
+    const editingId = restoredCircularDraft?.editingCircularId;
+    if (!editingId || editingCircular) return;
+
+    const found = circulars.find((circ) => circ.id === editingId);
+    if (found) {
+      setEditingCircular(found);
+    }
+  }, [circulars, editingCircular, restoredCircularDraft]);
+
+  // Autosave draft selama modal surat sedang terbuka.
+  useEffect(() => {
+    if (!showAddModal || typeof window === 'undefined') return;
+
+    const snapshot: CircularDraftSnapshot = {
+      isOpen: true,
+      editingCircularId:
+        editingCircular?.id ??
+        restoredCircularDraft?.editingCircularId ??
+        null,
+      title: formTitle,
+      nomor: formNomor,
+      grades: formGrades,
+      publishDate: formPublishDate,
+      effectiveDate: formEffectiveDate,
+      gdriveLink: formGdriveLink,
+      urgency: formUrgency,
+    };
+
+    window.localStorage.setItem(
+      CIRCULAR_DRAFT_STORAGE_KEY,
+      JSON.stringify(snapshot)
+    );
+  }, [
+    showAddModal,
+    editingCircular,
+    restoredCircularDraft,
+    formTitle,
+    formNomor,
+    formGrades,
+    formPublishDate,
+    formEffectiveDate,
+    formGdriveLink,
+    formUrgency,
+  ]);
+
+  const clearCircularDraft = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(CIRCULAR_DRAFT_STORAGE_KEY);
+    }
+  };
 
   // Reminder Form & Management State
   const [reminderList, setReminderList] = useState<ScheduledReminder[]>(reminders);
@@ -229,7 +333,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setFormUrgency('normal');
   };
 
+  const closeCircularModal = () => {
+    setShowAddModal(false);
+    clearCircularDraft();
+    resetForm();
+  };
+
   const handleEditClick = (circ: CircularLetter) => {
+    clearCircularDraft();
     setEditingCircular(circ);
     setFormTitle(circ.title);
     setFormNomor(circ.nomorSurat);
@@ -281,6 +392,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
 
     setShowAddModal(false);
+    clearCircularDraft();
     resetForm();
   };
 
@@ -311,6 +423,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
           <button
             onClick={() => {
+              clearCircularDraft();
               resetForm();
               setShowAddModal(true);
             }}
@@ -814,7 +927,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 {editingCircular ? 'Edit Surat Edaran' : 'Buat Surat Edaran Baru'}
               </h3>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={closeCircularModal}
                 className="text-blue-200 hover:text-white"
               >
                 ✕
@@ -916,7 +1029,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={closeCircularModal}
                   className="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-300"
                 >
                   Batal
