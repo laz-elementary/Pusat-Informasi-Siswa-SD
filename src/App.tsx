@@ -143,13 +143,41 @@ export default function App() {
   // =========================================================
 
   const [reminders, setReminders] =
-    useState<ScheduledReminder[]>(() => {
-      const saved = localStorage.getItem(
-        'lazuardi_clean_reminders'
-      );
+  useState<ScheduledReminder[]>([]);
 
-      return saved ? JSON.parse(saved) : INITIAL_REMINDERS;
-    });
+const [remindersLoading, setRemindersLoading] =
+  useState(true);
+
+const loadReminders = async () => {
+  setRemindersLoading(true);
+
+  const { data, error } = await supabase
+    .from('reminders')
+    .select('id, payload')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error(
+      'Gagal mengambil reminder dari Supabase:',
+      error
+    );
+
+    setRemindersLoading(false);
+    return;
+  }
+
+  const loadedReminders: ScheduledReminder[] =
+    (data ?? []).map(
+      (row) => row.payload as ScheduledReminder
+    );
+
+  setReminders(loadedReminders);
+  setRemindersLoading(false);
+};
+
+useEffect(() => {
+  void loadReminders();
+}, []);
 
   // =========================================================
   // GOOGLE CALENDAR
@@ -184,13 +212,6 @@ export default function App() {
       JSON.stringify(events)
     );
   }, [events]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      'lazuardi_clean_reminders',
-      JSON.stringify(reminders)
-    );
-  }, [reminders]);
 
   useEffect(() => {
     localStorage.setItem(
