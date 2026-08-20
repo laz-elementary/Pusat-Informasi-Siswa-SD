@@ -1,0 +1,6 @@
+{
+  "name": "Pusat Informasi SD Lazuardi",
+  "description": "Portal terpadu surat edaran, pengumuman, dan agenda kegiatan sekolah untuk orang tua murid SD Lazuardi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
