@@ -151,6 +151,71 @@ const [remindersLoading, setRemindersLoading] =
 const loadReminders = async () => {
   setRemindersLoading(true);
 
+  const migrateLocalRemindersToSupabase =
+  async () => {
+    const saved = localStorage.getItem(
+      'lazuardi_clean_reminders'
+    );
+
+    if (!saved) return;
+
+    let localReminders: ScheduledReminder[] =
+      [];
+
+    try {
+      localReminders = JSON.parse(saved);
+    } catch {
+      return;
+    }
+
+    if (localReminders.length === 0) {
+      return;
+    }
+
+    const { data: existing } =
+      await supabase
+        .from('reminders')
+        .select('id')
+        .limit(1);
+
+    // Jangan migrasi kalau Supabase sudah berisi data
+    if (existing && existing.length > 0) {
+      return;
+    }
+
+    const rows = localReminders.map(
+      (reminder) => ({
+        id: reminder.id,
+        payload: reminder,
+        updated_at: new Date().toISOString(),
+      })
+    );
+
+    const { error } = await supabase
+      .from('reminders')
+      .upsert(rows, {
+        onConflict: 'id',
+      });
+
+    if (error) {
+      console.error(
+        'Migrasi reminder gagal:',
+        error
+      );
+      return;
+    }
+
+    localStorage.removeItem(
+      'lazuardi_clean_reminders'
+    );
+
+    await loadReminders();
+
+    console.log(
+      'Reminder lama berhasil dipindahkan ke Supabase.'
+    );
+  };
+
   const { data, error } = await supabase
     .from('reminders')
     .select('id, payload')
@@ -295,8 +360,13 @@ useEffect(() => {
     } as AdminUser;
 
     setAdminUser(userForApp);
-    setAdminAuthLoading(false);
+setAdminAuthLoading(false);
 
+await loadCirculars();
+
+await migrateLocalRemindersToSupabase();
+await loadReminders();
+    
     // Admin boleh melihat semua informasi sesuai RLS,
     // termasuk jika nanti ada draft.
     await loadCirculars();
@@ -686,6 +756,90 @@ useEffect(() => {
     alert('Informasi berhasil dihapus.');
   };
 
+  const handleUpdateReminders = async (
+  nextReminders: ScheduledReminder[]
+) => {
+  if (!adminUser) {
+    alert(
+      'Silakan login sebagai admin terlebih dahulu.'
+    );
+    return;
+  }
+
+  const currentIds = reminders.map(
+    (reminder) => reminder.id
+  );
+
+  const nextIds = nextReminders.map(
+    (reminder) => reminder.id
+  );
+
+  // =====================================================
+  // TAMBAH / UPDATE
+  // =====================================================
+
+  if (nextReminders.length > 0) {
+    const rows = nextReminders.map(
+      (reminder) => ({
+        id: reminder.id,
+        payload: reminder,
+        updated_at: new Date().toISOString(),
+      })
+    );
+
+    const { error: upsertError } =
+      await supabase
+        .from('reminders')
+        .upsert(rows, {
+          onConflict: 'id',
+        });
+
+    if (upsertError) {
+      console.error(
+        'Gagal menyimpan reminder:',
+        upsertError
+      );
+
+      alert(
+        `Reminder belum berhasil disimpan.\n\n${upsertError.message}`
+      );
+
+      return;
+    }
+  }
+
+  // =====================================================
+  // HAPUS DATA YANG SUDAH DIHAPUS DARI ADMIN
+  // =====================================================
+
+  const deletedIds = currentIds.filter(
+    (id) => !nextIds.includes(id)
+  );
+
+  if (deletedIds.length > 0) {
+    const { error: deleteError } =
+      await supabase
+        .from('reminders')
+        .delete()
+        .in('id', deletedIds);
+
+    if (deleteError) {
+      console.error(
+        'Gagal menghapus reminder:',
+        deleteError
+      );
+
+      alert(
+        `Reminder belum berhasil dihapus.\n\n${deleteError.message}`
+      );
+
+      return;
+    }
+  }
+
+  setReminders(nextReminders);
+};
+  
   // =========================================================
   // GRADE OPTIONS
   // =========================================================
@@ -1049,8 +1203,9 @@ useEffect(() => {
                 onUpdateAlerts={
                   setAlerts
                 }
-                onUpdateReminders={
-                  setReminders
+                onUpdateReminders={(nextReminders) => {
+  void handleUpdateReminders(nextReminders);
+}}
                 }
                 onAddEvent={(newEvent) =>
                   setEvents((prev) => [
