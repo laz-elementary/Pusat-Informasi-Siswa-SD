@@ -1088,9 +1088,11 @@ export default function App() {
       <footer className="bg-white border-t border-slate-200 mt-12 py-5 text-slate-600 text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-blue-950 text-amber-400 font-bold flex items-center justify-center text-[10px]">
-              LZ
-            </div>
+            <img
+  src="/favicon.png"
+  alt="Logo Lazuardi"
+  className="w-8 h-8 object-contain"
+/>
 
             <span className="text-slate-700 font-medium">
               <strong>
