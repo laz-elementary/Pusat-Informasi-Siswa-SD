@@ -1,3 +1,4 @@
+import { supabase } from './lib/supabase';
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { EmergencyBanner } from './components/EmergencyBanner';
@@ -30,10 +31,64 @@ import { BookOpen, Shield, Lock } from 'lucide-react';
 
 export default function App() {
   // Persistence state in localStorage (fresh clean slate)
-  const [circulars, setCirculars] = useState<CircularLetter[]>(() => {
-    const saved = localStorage.getItem('lazuardi_clean_circulars');
-    return saved ? JSON.parse(saved) : INITIAL_CIRCULARS;
-  });
+  const [circulars, setCirculars] = useState<CircularLetter[]>([]);
+
+useEffect(() => {
+  const loadCirculars = async () => {
+    const { data, error } = await supabase
+      .from('informasi')
+      .select('*')
+      .eq('status', 'published')
+      .order('pinned', { ascending: false })
+      .order('tanggal', { ascending: false });
+
+    if (error) {
+      console.error('Gagal mengambil informasi dari Supabase:', error);
+      return;
+    }
+
+    const mappedCirculars: CircularLetter[] = (data ?? []).map((row) => ({
+      id: row.id,
+      nomorSurat: row.nomor_surat ?? '',
+      title: row.judul,
+      category: row.kategori,
+      gradeLevels: row.target_grade ?? ['Semua'],
+      publishDate: row.tanggal,
+      effectiveDate: row.effective_date ?? '',
+      deadlineConfirmation: row.deadline_confirmation ?? undefined,
+
+      urgency: (row.urgency ?? 'normal') as CircularLetter['urgency'],
+
+      summary: row.summary ?? '',
+      content: row.isi,
+
+      actionRequired: row.action_required ?? undefined,
+
+      attachmentName: row.attachment_name ?? undefined,
+      attachmentSize: row.attachment_size ?? undefined,
+      attachmentType: row.attachment_type ?? undefined,
+
+      gdriveLink:
+        row.gdrive_link ??
+        row.lampiran_url ??
+        row.tautan_url ??
+        undefined,
+
+      signedBy: row.signed_by ?? '',
+      tembusan: row.tembusan ?? [],
+
+      whatsappBroadcastText:
+        row.whatsapp_broadcast_text ?? undefined,
+
+      isPinned: row.pinned ?? false,
+      viewCount: row.view_count ?? 0,
+    }));
+
+    setCirculars(mappedCirculars);
+  };
+
+  loadCirculars();
+}, []);
 
   const [alerts, setAlerts] = useState<EmergencyAlert[]>(() => {
     const saved = localStorage.getItem('lazuardi_clean_alerts');
