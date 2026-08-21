@@ -25,7 +25,7 @@ import {
   INITIAL_EVENTS,
 } from './data/initialData';
 
-import { BookOpen, Lock, X, FileText, Megaphone, Pin, CalendarDays, ExternalLink } from 'lucide-react';
+import { BookOpen, Lock, X, FileText, Megaphone, Pin, CalendarDays, ExternalLink, Newspaper } from 'lucide-react';
 
 export default function App() {
   // =========================================================
@@ -308,7 +308,7 @@ export default function App() {
 
   // Sub-menu portal orang tua: surat resmi vs info singkat
   const [parentContentView, setParentContentView] = useState<
-    'surat' | 'info'
+    'surat' | 'info' | 'elementary_update'
   >('surat');
 
   // =========================================================
@@ -988,6 +988,10 @@ export default function App() {
     (circ) => circ.tipeKonten === 'info'
   );
 
+  const elementaryUpdateCirculars = circulars.filter(
+    (circ) => circ.tipeKonten === 'elementary_update'
+  );
+
   const filteredSuratCirculars = suratCirculars.filter(
     matchesPortalFilter
   );
@@ -995,6 +999,9 @@ export default function App() {
   const filteredInfoCirculars = infoCirculars.filter(
     matchesPortalFilter
   );
+
+  const filteredElementaryUpdateCirculars =
+    elementaryUpdateCirculars.filter(matchesPortalFilter);
 
   // =========================================================
   // OPEN DETAIL
@@ -1113,6 +1120,28 @@ export default function App() {
                   {infoCirculars.length}
                 </span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setParentContentView('elementary_update')}
+                className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                  parentContentView === 'elementary_update'
+                    ? 'bg-emerald-700 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Newspaper className="w-4 h-4" />
+                <span>Elementary Updates</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                    parentContentView === 'elementary_update'
+                      ? 'bg-white/15 text-white'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {elementaryUpdateCirculars.length}
+                </span>
+              </button>
             </div>
 
             <FilterBar
@@ -1174,7 +1203,7 @@ export default function App() {
                   </div>
                 )}
               </>
-            ) : (
+            ) : parentContentView === 'info' ? (
               <>
                 {filteredInfoCirculars.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1270,6 +1299,98 @@ export default function App() {
                     <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
                       {infoCirculars.length === 0
                         ? 'Pengumuman singkat, reminder khusus, dan informasi terbaru untuk orang tua akan tampil di bagian ini.'
+                        : 'Coba ubah kata kunci pencarian atau pilihan jenjang kelas.'}
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {filteredElementaryUpdateCirculars.length > 0 ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {filteredElementaryUpdateCirculars.map((update) => {
+                      const peruntukan =
+                        update.gradeLevels?.includes('Semua Kelas')
+                          ? 'Elementary'
+                          : update.gradeLevels?.join(', ');
+
+                      return (
+                        <article
+                          key={update.id}
+                          className="group bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden hover:shadow-md transition-shadow"
+                        >
+                          <div className="h-2 bg-emerald-600" />
+
+                          <div className="p-5 sm:p-6">
+                            <div className="flex flex-wrap items-center gap-2 mb-3">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1 text-[10px] sm:text-xs font-extrabold uppercase tracking-wide">
+                                <Newspaper className="w-3.5 h-3.5" />
+                                Elementary Updates
+                              </span>
+
+                              <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
+                                <CalendarDays className="w-3.5 h-3.5" />
+                                {update.publishDate}
+                              </span>
+
+                              {peruntukan && (
+                                <span className="text-[11px] font-semibold text-slate-600">
+                                  {peruntukan}
+                                </span>
+                              )}
+                            </div>
+
+                            <h3 className="font-extrabold text-lg sm:text-xl text-slate-950 leading-snug group-hover:text-emerald-800 transition-colors">
+                              {update.title}
+                            </h3>
+
+                            {(update.summary || update.content) && (
+                              <p className="mt-2.5 text-sm text-slate-600 leading-relaxed whitespace-pre-line line-clamp-5">
+                                {update.summary || update.content}
+                              </p>
+                            )}
+
+                            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDetail(update)}
+                                className="text-xs font-extrabold text-emerald-800 hover:text-emerald-950"
+                              >
+                                Baca Selengkapnya →
+                              </button>
+
+                              {update.gdriveLink && (
+                                <a
+                                  href={update.gdriveLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-blue-800 hover:underline"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  Tautan
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                      <Newspaper className="w-6 h-6" />
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 text-base">
+                      {elementaryUpdateCirculars.length === 0
+                        ? 'Belum Ada Elementary Updates'
+                        : 'Tidak ada update yang sesuai'}
+                    </h3>
+
+                    <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                      {elementaryUpdateCirculars.length === 0
+                        ? 'Highlight kegiatan, project, prestasi, dan cerita terbaru dari Elementary akan tampil di sini.'
                         : 'Coba ubah kata kunci pencarian atau pilihan jenjang kelas.'}
                     </p>
                   </div>
