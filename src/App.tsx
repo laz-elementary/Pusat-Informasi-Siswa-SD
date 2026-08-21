@@ -25,7 +25,7 @@ import {
   INITIAL_EVENTS,
 } from './data/initialData';
 
-import { BookOpen, Lock, X } from 'lucide-react';
+import { BookOpen, Lock, X, FileText, Megaphone, Pin, CalendarDays, ExternalLink } from 'lucide-react';
 
 export default function App() {
   // =========================================================
@@ -305,6 +305,11 @@ export default function App() {
   const [activeView, setActiveView] = useState<
     'letters' | 'calendar' | 'admin'
   >('letters');
+
+  // Sub-menu portal orang tua: surat resmi vs info singkat
+  const [parentContentView, setParentContentView] = useState<
+    'surat' | 'info'
+  >('surat');
 
   // =========================================================
   // CEK SESSION ADMIN
@@ -926,64 +931,70 @@ export default function App() {
   }, [circulars]);
 
   // =========================================================
-  // FILTERING CIRCULAR
+  // FILTERING CONTENT
   // =========================================================
 
-  const filteredCirculars =
-    circulars.filter((circ) => {
-      // Menu Surat Edaran hanya menampilkan konten bertipe surat.
-      // Data lama yang belum memiliki tipe_konten tetap dianggap sebagai surat.
-      if ((circ.tipeKonten ?? 'surat') !== 'surat') {
-        return false;
-      }
+  const matchesPortalFilter = (circ: CircularLetter) => {
+    if (filter.search) {
+      const query = filter.search.toLowerCase();
 
-      if (filter.search) {
-        const query =
-          filter.search.toLowerCase();
+      const matchTitle = (circ.title || '')
+        .toLowerCase()
+        .includes(query);
 
-        const matchTitle =
-          (circ.title || '')
-            .toLowerCase()
-            .includes(query);
+      const matchNomor = (circ.nomorSurat || '')
+        .toLowerCase()
+        .includes(query);
 
-        const matchNomor =
-          (circ.nomorSurat || '')
-            .toLowerCase()
-            .includes(query);
+      const matchSummary = (circ.summary || '')
+        .toLowerCase()
+        .includes(query);
 
-        const matchSummary =
-          (circ.summary || '')
-            .toLowerCase()
-            .includes(query);
-
-        if (
-          !matchTitle &&
-          !matchNomor &&
-          !matchSummary
-        ) {
-          return false;
-        }
-      }
+      const matchContent = (circ.content || '')
+        .toLowerCase()
+        .includes(query);
 
       if (
-        filter.gradeLevel &&
-        filter.gradeLevel !== 'Semua Kelas'
+        !matchTitle &&
+        !matchNomor &&
+        !matchSummary &&
+        !matchContent
       ) {
-        const hasGrade =
-          circ.gradeLevels.includes(
-            'Semua Kelas'
-          ) ||
-          circ.gradeLevels.includes(
-            filter.gradeLevel
-          );
-
-        if (!hasGrade) {
-          return false;
-        }
+        return false;
       }
+    }
 
-      return true;
-    });
+    if (
+      filter.gradeLevel &&
+      filter.gradeLevel !== 'Semua Kelas'
+    ) {
+      const hasGrade =
+        circ.gradeLevels.includes('Semua Kelas') ||
+        circ.gradeLevels.includes(filter.gradeLevel);
+
+      if (!hasGrade) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const suratCirculars = circulars.filter(
+    (circ) => (circ.tipeKonten ?? 'surat') === 'surat'
+  );
+
+  const infoCirculars = circulars.filter(
+    (circ) => circ.tipeKonten === 'info'
+  );
+
+  const filteredSuratCirculars = suratCirculars.filter(
+    matchesPortalFilter
+  );
+
+  const filteredInfoCirculars = infoCirculars.filter(
+    matchesPortalFilter
+  );
 
   // =========================================================
   // OPEN DETAIL
@@ -1054,14 +1065,59 @@ export default function App() {
           reminders={reminders}
         />
 
-        {/* LETTERS */}
+        {/* PORTAL INFORMASI ORANG TUA */}
         {activeView === 'letters' && (
-          <div className="space-y-6">
+          <div className="space-y-5">
+            {/* Sub menu: Surat Edaran / Info Terkini */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-1.5 shadow-xs flex gap-1.5 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setParentContentView('surat')}
+                className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                  parentContentView === 'surat'
+                    ? 'bg-blue-950 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>Surat Edaran</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                    parentContentView === 'surat'
+                      ? 'bg-white/15 text-white'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {suratCirculars.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setParentContentView('info')}
+                className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                  parentContentView === 'info'
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Megaphone className="w-4 h-4" />
+                <span>Info Terkini</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                    parentContentView === 'info'
+                      ? 'bg-slate-950/10 text-slate-800'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {infoCirculars.length}
+                </span>
+              </button>
+            </div>
+
             <FilterBar
               filter={filter}
-              onChangeFilter={(
-                newFilter
-              ) =>
+              onChangeFilter={(newFilter) =>
                 setFilter((prev) => ({
                   ...prev,
                   ...newFilter,
@@ -1073,72 +1129,152 @@ export default function App() {
             {circularLoading ? (
               <div className="bg-white rounded-2xl p-12 text-center border border-slate-200">
                 <div className="w-8 h-8 border-4 border-slate-200 border-t-blue-900 rounded-full animate-spin mx-auto mb-4" />
-
                 <p className="text-sm font-semibold text-slate-700">
                   Memuat informasi sekolah...
                 </p>
               </div>
-            ) : filteredCirculars.length >
-              0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {filteredCirculars.map(
-                  (circ) => (
-                    <CircularCard
-                      key={circ.id}
-                      circular={circ}
-                      onOpenDetail={
-                        handleOpenDetail
-                      }
-                    />
-                  )
-                )}
-              </div>
-            ) : (
-              <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                  <BookOpen className="w-6 h-6" />
-                </div>
-
-                <h3 className="font-bold text-slate-900 text-base">
-                  {circulars.length === 0
-                    ? 'Belum Ada Surat Edaran'
-                    : 'Tidak ada surat edaran yang sesuai'}
-                </h3>
-
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  {circulars.length === 0
-                    ? 'Surat edaran sekolah yang dipublikasikan akan tampil di sini.'
-                    : 'Coba ubah kata kunci pencarian atau ganti pilihan filter jenjang kelas di atas.'}
-                </p>
-
-                {circulars.length === 0 ? (
-                  <button
-                    onClick={
-                      handleRequestAdminMode
-                    }
-                    className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-                  >
-                    + Buat Surat Edaran Baru
-                  </button>
+            ) : parentContentView === 'surat' ? (
+              <>
+                {filteredSuratCirculars.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filteredSuratCirculars.map((circ) => (
+                      <CircularCard
+                        key={circ.id}
+                        circular={circ}
+                        onOpenDetail={handleOpenDetail}
+                      />
+                    ))}
+                  </div>
                 ) : (
-                  <button
-                    onClick={() =>
-                      setFilter({
-                        search: '',
-                        gradeLevel:
-                          'Semua Kelas',
-                        category: '',
-                        month: '',
-                        onlyUrgent: false,
-                        onlyUnread: false,
-                      })
-                    }
-                    className="px-4 py-2 bg-blue-900 text-white rounded-xl text-xs font-semibold cursor-pointer"
-                  >
-                    Reset Filter
-                  </button>
+                  <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                      <BookOpen className="w-6 h-6" />
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 text-base">
+                      {suratCirculars.length === 0
+                        ? 'Belum Ada Surat Edaran'
+                        : 'Tidak ada surat edaran yang sesuai'}
+                    </h3>
+
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      {suratCirculars.length === 0
+                        ? 'Surat edaran resmi sekolah yang dipublikasikan akan tampil di sini.'
+                        : 'Coba ubah kata kunci pencarian atau pilihan jenjang kelas.'}
+                    </p>
+
+                    {suratCirculars.length === 0 && adminUser && (
+                      <button
+                        onClick={handleRequestAdminMode}
+                        className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white rounded-xl text-xs font-semibold transition-colors"
+                      >
+                        + Buat Surat Edaran Baru
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
+            ) : (
+              <>
+                {filteredInfoCirculars.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filteredInfoCirculars.map((info) => {
+                      const peruntukan =
+                        info.gradeLevels?.includes('Semua Kelas')
+                          ? 'Semua Kelas'
+                          : info.gradeLevels?.join(', ');
+
+                      return (
+                        <article
+                          key={info.id}
+                          className={`bg-white rounded-2xl border shadow-xs overflow-hidden ${
+                            info.isPinned
+                              ? 'border-amber-300'
+                              : 'border-slate-200'
+                          }`}
+                        >
+                          <div className="p-5">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2 mb-3">
+                                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-200 text-amber-900 px-2.5 py-1 text-[10px] sm:text-xs font-extrabold uppercase tracking-wide">
+                                    <Megaphone className="w-3.5 h-3.5" />
+                                    Info Terkini
+                                  </span>
+
+                                  {info.isPinned && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 px-2.5 py-1 text-[10px] font-bold">
+                                      <Pin className="w-3 h-3" />
+                                      Penting
+                                    </span>
+                                  )}
+                                </div>
+
+                                <h3 className="font-extrabold text-base sm:text-lg text-slate-950 leading-snug">
+                                  {info.title}
+                                </h3>
+
+                                {(info.summary || info.content) && (
+                                  <p className="mt-2 text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+                                    {info.summary || info.content}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                                <Megaphone className="w-5 h-5" />
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 pt-3 border-t border-slate-100 text-[11px] sm:text-xs text-slate-500">
+                              <span className="inline-flex items-center gap-1.5">
+                                <CalendarDays className="w-3.5 h-3.5 text-blue-900" />
+                                {info.publishDate}
+                              </span>
+
+                              {peruntukan && (
+                                <span className="font-semibold text-slate-600">
+                                  {peruntukan}
+                                </span>
+                              )}
+
+                              {info.gdriveLink && (
+                                <a
+                                  href={info.gdriveLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 font-bold text-blue-800 hover:underline"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  Buka Tautan
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+                      <Megaphone className="w-6 h-6" />
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 text-base">
+                      {infoCirculars.length === 0
+                        ? 'Belum Ada Info Terkini'
+                        : 'Tidak ada informasi yang sesuai'}
+                    </h3>
+
+                    <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                      {infoCirculars.length === 0
+                        ? 'Pengumuman singkat, reminder khusus, dan informasi terbaru untuk orang tua akan tampil di bagian ini.'
+                        : 'Coba ubah kata kunci pencarian atau pilihan jenjang kelas.'}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
