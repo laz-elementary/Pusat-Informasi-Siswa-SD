@@ -49,6 +49,7 @@ export default function App() {
     id: row.id,
     nomorSurat: row.nomor_surat ?? '',
     title: row.judul ?? '',
+    tipeKonten: (row.tipe_konten ?? 'surat') as CircularLetter['tipeKonten'],
     category: row.kategori ?? 'Pengumuman',
     gradeLevels: normalizeGradeLevels(row.target_grade),
     publishDate: row.tanggal ?? '',
@@ -527,6 +528,8 @@ export default function App() {
 
     judul: circular.title,
 
+    tipe_konten: circular.tipeKonten ?? 'surat',
+
     isi: circular.content || '',
 
     kategori:
@@ -928,6 +931,12 @@ export default function App() {
 
   const filteredCirculars =
     circulars.filter((circ) => {
+      // Menu Surat Edaran hanya menampilkan konten bertipe surat.
+      // Data lama yang belum memiliki tipe_konten tetap dianggap sebagai surat.
+      if ((circ.tipeKonten ?? 'surat') !== 'surat') {
+        return false;
+      }
+
       if (filter.search) {
         const query =
           filter.search.toLowerCase();
