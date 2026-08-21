@@ -34,6 +34,9 @@ export interface CircularLetter {
   id: string;
   nomorSurat: string;
   title: string;
+
+  tipeKonten?: 'surat' | 'info' | 'elementary_update';
+  
   category?: CircularCategory | string;
   gradeLevels: string[]; // e.g. ['Semua Kelas'] or ['Kelas 1', 'Fase A']
   publishDate: string;
