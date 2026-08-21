@@ -237,6 +237,113 @@ export default function App() {
   }, []);
 
   // =========================================================
+  // REALTIME SUPABASE
+  // =========================================================
+  //
+  // Setiap ada INSERT / UPDATE / DELETE pada tabel informasi
+  // atau reminders, portal yang sedang terbuka akan mengambil
+  // data terbaru tanpa perlu refresh manual.
+  //
+  // Selain realtime, saat user kembali ke tab/browser ini,
+  // data juga diperiksa ulang sebagai fallback.
+
+  useEffect(() => {
+    let refreshTimer: number | undefined;
+
+    const refreshPortalData = () => {
+      if (refreshTimer) {
+        window.clearTimeout(refreshTimer);
+      }
+
+      // Debounce singkat untuk menghindari reload berkali-kali
+      // bila beberapa perubahan terjadi hampir bersamaan.
+      refreshTimer = window.setTimeout(() => {
+        void loadCirculars();
+        void loadReminders();
+      }, 250);
+    };
+
+    const realtimeChannel = supabase
+      .channel('lazuardi-parent-portal-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'informasi',
+        },
+        () => {
+          refreshPortalData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reminders',
+        },
+        () => {
+          refreshPortalData();
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(
+            'Realtime Pusat Informasi SD Lazuardi aktif.'
+          );
+        }
+
+        if (
+          status === 'CHANNEL_ERROR' ||
+          status === 'TIMED_OUT'
+        ) {
+          console.warn(
+            'Realtime mengalami gangguan. Data tetap akan diperiksa saat tab kembali aktif.'
+          );
+        }
+      });
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshPortalData();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      refreshPortalData();
+    };
+
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibilityChange
+    );
+
+    window.addEventListener(
+      'focus',
+      handleWindowFocus
+    );
+
+    return () => {
+      if (refreshTimer) {
+        window.clearTimeout(refreshTimer);
+      }
+
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange
+      );
+
+      window.removeEventListener(
+        'focus',
+        handleWindowFocus
+      );
+
+      void supabase.removeChannel(realtimeChannel);
+    };
+  }, []);
+
+  // =========================================================
   // GOOGLE CALENDAR
   // =========================================================
 
