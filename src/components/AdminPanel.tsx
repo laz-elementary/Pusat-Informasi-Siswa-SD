@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, Edit, Trash2, Pin,
   FileText, ExternalLink, Eye, ShieldCheck,
-  Bell, Clock, MapPin, Sparkles, Check, Calendar as CalendarIcon, Link as LinkIcon, RefreshCw
+  Bell, Clock, MapPin, Sparkles, Check, Calendar as CalendarIcon, Link as LinkIcon, RefreshCw, Megaphone
 } from 'lucide-react';
 import { CircularLetter, EmergencyAlert, SchoolEvent, GradeLevel, ScheduledReminder, RecurrenceType, AdminUser } from '../types';
 
@@ -51,6 +51,31 @@ const readCircularDraft = (): CircularDraftSnapshot | null => {
   }
 };
 
+
+const INFO_DRAFT_STORAGE_KEY = 'lazuardi_admin_info_draft_v1';
+
+interface InfoDraftSnapshot {
+  isOpen: boolean;
+  editingInfoId: string | null;
+  title: string;
+  content: string;
+  grades: string[];
+  publishDate: string;
+  link: string;
+  isPinned: boolean;
+}
+
+const readInfoDraft = (): InfoDraftSnapshot | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.localStorage.getItem(INFO_DRAFT_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as InfoDraftSnapshot) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   circulars,
   alerts,
@@ -69,7 +94,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   adminUser,
   onLogout,
 }) => {
-  const [activeTab, setActiveTab] = useState<'surat' | 'reminders' | 'calendar'>('surat');
+  const [activeTab, setActiveTab] = useState<'surat' | 'info' | 'reminders' | 'calendar'>('surat');
   const [inputCalUrl, setInputCalUrl] = useState(calendarUrl);
   const [calSavedSuccess, setCalSavedSuccess] = useState(false);
 
@@ -177,6 +202,211 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(CIRCULAR_DRAFT_STORAGE_KEY);
     }
+  };
+
+  // =========================================================
+  // INFO TERKINI FORM STATE
+  // =========================================================
+
+  const [restoredInfoDraft] = useState<InfoDraftSnapshot | null>(() =>
+    readInfoDraft()
+  );
+
+  const [showInfoModal, setShowInfoModal] = useState(
+    () => restoredInfoDraft?.isOpen ?? false
+  );
+
+  const [editingInfo, setEditingInfo] = useState<CircularLetter | null>(null);
+
+  const [infoTitle, setInfoTitle] = useState(
+    () => restoredInfoDraft?.title ?? ''
+  );
+
+  const [infoContent, setInfoContent] = useState(
+    () => restoredInfoDraft?.content ?? ''
+  );
+
+  const [infoGrades, setInfoGrades] = useState<string[]>(
+    () => restoredInfoDraft?.grades ?? ['Semua Kelas']
+  );
+
+  const [infoPublishDate, setInfoPublishDate] = useState(
+    () =>
+      restoredInfoDraft?.publishDate ??
+      new Date().toISOString().split('T')[0]
+  );
+
+  const [infoLink, setInfoLink] = useState(
+    () => restoredInfoDraft?.link ?? ''
+  );
+
+  const [infoPinned, setInfoPinned] = useState(
+    () => restoredInfoDraft?.isPinned ?? false
+  );
+
+  const infoItems = circulars.filter(
+    (item) => item.tipeKonten === 'info'
+  );
+
+  const suratItems = circulars.filter(
+    (item) => (item.tipeKonten ?? 'surat') === 'surat'
+  );
+
+  useEffect(() => {
+    const editingId = restoredInfoDraft?.editingInfoId;
+
+    if (!editingId || editingInfo) return;
+
+    const found = circulars.find((item) => item.id === editingId);
+
+    if (found && found.tipeKonten === 'info') {
+      setEditingInfo(found);
+    }
+  }, [circulars, editingInfo, restoredInfoDraft]);
+
+  useEffect(() => {
+    if (!showInfoModal || typeof window === 'undefined') return;
+
+    const snapshot: InfoDraftSnapshot = {
+      isOpen: true,
+      editingInfoId:
+        editingInfo?.id ??
+        restoredInfoDraft?.editingInfoId ??
+        null,
+      title: infoTitle,
+      content: infoContent,
+      grades: infoGrades,
+      publishDate: infoPublishDate,
+      link: infoLink,
+      isPinned: infoPinned,
+    };
+
+    window.localStorage.setItem(
+      INFO_DRAFT_STORAGE_KEY,
+      JSON.stringify(snapshot)
+    );
+  }, [
+    showInfoModal,
+    editingInfo,
+    restoredInfoDraft,
+    infoTitle,
+    infoContent,
+    infoGrades,
+    infoPublishDate,
+    infoLink,
+    infoPinned,
+  ]);
+
+  const clearInfoDraft = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(INFO_DRAFT_STORAGE_KEY);
+    }
+  };
+
+  const resetInfoForm = () => {
+    setEditingInfo(null);
+    setInfoTitle('');
+    setInfoContent('');
+    setInfoGrades(['Semua Kelas']);
+    setInfoPublishDate(new Date().toISOString().split('T')[0]);
+    setInfoLink('');
+    setInfoPinned(false);
+  };
+
+  const closeInfoModal = () => {
+    setShowInfoModal(false);
+    clearInfoDraft();
+    resetInfoForm();
+  };
+
+  const toggleInfoGradeSelection = (grade: string) => {
+    if (grade === 'Semua Kelas') {
+      setInfoGrades(['Semua Kelas']);
+      return;
+    }
+
+    const withoutSemua = infoGrades.filter(
+      (item) => item !== 'Semua Kelas'
+    );
+
+    if (withoutSemua.includes(grade)) {
+      const next = withoutSemua.filter((item) => item !== grade);
+      setInfoGrades(next.length === 0 ? ['Semua Kelas'] : next);
+    } else {
+      setInfoGrades([...withoutSemua, grade]);
+    }
+  };
+
+  const handleEditInfo = (info: CircularLetter) => {
+    clearInfoDraft();
+
+    setEditingInfo(info);
+    setInfoTitle(info.title || '');
+    setInfoContent(info.content || info.summary || '');
+    setInfoGrades(
+      info.gradeLevels?.length > 0
+        ? info.gradeLevels
+        : ['Semua Kelas']
+    );
+    setInfoPublishDate(
+      info.publishDate || new Date().toISOString().split('T')[0]
+    );
+    setInfoLink(info.gdriveLink || '');
+    setInfoPinned(info.isPinned ?? false);
+
+    setShowInfoModal(true);
+  };
+
+  const handleSaveInfo = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!infoTitle.trim() || !infoContent.trim()) return;
+
+    if (editingInfo) {
+      const updatedInfo: CircularLetter = {
+        ...editingInfo,
+        tipeKonten: 'info',
+        nomorSurat: '',
+        title: infoTitle.trim(),
+        category: 'Info Terkini',
+        gradeLevels: infoGrades,
+        publishDate: infoPublishDate,
+        effectiveDate: '',
+        summary: infoContent.trim(),
+        content: infoContent.trim(),
+        gdriveLink: infoLink.trim() || undefined,
+        urgency: infoPinned ? 'penting' : 'normal',
+        isPinned: infoPinned,
+        signedBy: '',
+      };
+
+      onUpdateCircular(updatedInfo);
+    } else {
+      const newInfo: CircularLetter = {
+        id: `info-${Date.now()}`,
+        tipeKonten: 'info',
+        nomorSurat: '',
+        title: infoTitle.trim(),
+        category: 'Info Terkini',
+        gradeLevels: infoGrades,
+        publishDate: infoPublishDate,
+        effectiveDate: '',
+        urgency: infoPinned ? 'penting' : 'normal',
+        summary: infoContent.trim(),
+        content: infoContent.trim(),
+        gdriveLink: infoLink.trim() || undefined,
+        signedBy: '',
+        tembusan: [],
+        isPinned: infoPinned,
+        viewCount: 0,
+      };
+
+      onAddCircular(newInfo);
+    }
+
+    setShowInfoModal(false);
+    clearInfoDraft();
+    resetInfoForm();
   };
 
   // Reminder Form & Management State
@@ -420,11 +650,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full md:w-auto">
+          <button
+            onClick={() => {
+              clearInfoDraft();
+              resetInfoForm();
+              setActiveTab('info');
+              setShowInfoModal(true);
+            }}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 text-blue-950 border border-white/70 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all cursor-pointer"
+          >
+            <Megaphone className="w-4 h-4 text-amber-600" />
+            <span>Buat Info Terkini</span>
+          </button>
+
           <button
             onClick={() => {
               clearCircularDraft();
               resetForm();
+              setActiveTab('surat');
               setShowAddModal(true);
             }}
             className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all cursor-pointer"
@@ -444,8 +688,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           }`}
         >
           <FileText className="w-4 h-4" />
-          Daftar Surat Edaran ({circulars.length})
+          Daftar Surat Edaran ({suratItems.length})
         </button>
+
+        <button
+          onClick={() => setActiveTab('info')}
+          className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            activeTab === 'info' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Megaphone className="w-4 h-4" />
+          Info Terkini ({infoItems.length})
+        </button>
+
         <button
           onClick={() => setActiveTab('reminders')}
           className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
@@ -569,13 +824,163 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
+      {/* Tab Content: Info Terkini */}
+      {activeTab === 'info' && (
+        <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                <Megaphone className="w-4 h-4 text-amber-600" />
+                Kelola Info Terkini
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Untuk pengumuman singkat atau informasi orang tua yang tidak memerlukan nomor surat.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                clearInfoDraft();
+                resetInfoForm();
+                setShowInfoModal(true);
+              }}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-bold rounded-xl transition-colors shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Tambah Info Terkini
+            </button>
+          </div>
+
+          {infoItems.length > 0 ? (
+            <div className="space-y-3">
+              {infoItems.map((info) => {
+                const peruntukanText = info.gradeLevels?.includes('Semua Kelas')
+                  ? 'Semua Kelas'
+                  : info.gradeLevels?.join(', ');
+
+                return (
+                  <div
+                    key={info.id}
+                    className={`rounded-xl border p-4 flex flex-col lg:flex-row lg:items-start justify-between gap-4 ${
+                      info.isPinned
+                        ? 'border-amber-300 bg-amber-50/50'
+                        : 'border-slate-200 bg-slate-50'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 bg-amber-100 border border-amber-200 text-amber-900 text-[10px] font-bold uppercase tracking-wide">
+                          <Megaphone className="w-3 h-3" />
+                          Info Terkini
+                        </span>
+
+                        {info.isPinned && (
+                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-900 text-[10px] font-bold">
+                            <Pin className="w-3 h-3" />
+                            Penting
+                          </span>
+                        )}
+
+                        <span className="text-[11px] text-slate-500">
+                          {info.publishDate}
+                        </span>
+
+                        {peruntukanText && (
+                          <span className="text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 rounded-md px-2 py-0.5">
+                            {peruntukanText}
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="font-extrabold text-sm sm:text-base text-slate-950">
+                        {info.title}
+                      </h4>
+
+                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mt-1.5 whitespace-pre-line">
+                        {info.content || info.summary}
+                      </p>
+
+                      {info.gdriveLink && (
+                        <a
+                          href={info.gdriveLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-2 text-xs text-blue-800 font-bold hover:underline"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Buka Tautan
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 self-end lg:self-start">
+                      <button
+                        onClick={() => {
+                          onUpdateCircular({
+                            ...info,
+                            isPinned: !info.isPinned,
+                            urgency: !info.isPinned ? 'penting' : 'normal',
+                          });
+                        }}
+                        className={`p-2 rounded-lg border transition-colors ${
+                          info.isPinned
+                            ? 'bg-amber-100 text-amber-800 border-amber-300'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-50'
+                        }`}
+                        title={info.isPinned ? 'Lepas tanda penting' : 'Tandai penting'}
+                      >
+                        <Pin className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        onClick={() => handleEditInfo(info)}
+                        className="p-2 text-slate-700 hover:bg-white rounded-lg border border-slate-200"
+                        title="Edit Info"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (confirm(`Hapus info "${info.title}"?`)) {
+                            onDeleteCircular(info.id);
+                          }
+                        }}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg border border-red-200"
+                        title="Hapus Info"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+              <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3">
+                <Megaphone className="w-5 h-5" />
+              </div>
+
+              <h4 className="font-bold text-sm text-slate-900">
+                Belum ada Info Terkini
+              </h4>
+
+              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                Gunakan Info Terkini untuk informasi singkat yang tidak memerlukan nomor surat resmi.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tab Content: Surat Edaran */}
       {activeTab === 'surat' && (
         <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <h3 className="font-bold text-base text-slate-900">Daftar Seluruh Surat Edaran</h3>
             <span className="text-xs text-slate-500">
-              Menampilkan {circulars.length} dokumen tersimpan
+              Menampilkan {suratItems.length} dokumen tersimpan
             </span>
           </div>
 
@@ -591,7 +996,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {circulars.map((circ) => {
+                {suratItems.map((circ) => {
                   const peruntukanText = circ.gradeLevels?.includes('Semua Kelas')
                     ? 'Semua Kelas'
                     : circ.gradeLevels?.join(', ');
@@ -911,6 +1316,160 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="px-5 py-2 bg-blue-900 hover:bg-blue-950 text-white rounded-xl text-xs font-bold shadow-md"
                 >
                   {editingReminder ? 'Simpan Perubahan' : 'Terbitkan Pengingat'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Info Terkini Modal */}
+      {showInfoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full my-auto max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+            <div className="bg-amber-400 text-slate-950 p-4 px-6 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Megaphone className="w-5 h-5" />
+                <h3 className="font-extrabold text-base">
+                  {editingInfo ? 'Edit Info Terkini' : 'Buat Info Terkini'}
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeInfoModal}
+                className="text-slate-700 hover:text-slate-950 text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleSaveInfo}
+              className="p-6 overflow-y-auto space-y-4 flex-1 text-xs sm:text-sm text-slate-800"
+            >
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-950 leading-relaxed">
+                <strong>Info Terkini</strong> digunakan untuk informasi singkat kepada orang tua.
+                Tidak memerlukan nomor surat atau format surat resmi.
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Judul Informasi *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={infoTitle}
+                  onChange={(e) => setInfoTitle(e.target.value)}
+                  placeholder="Contoh: Informasi Kepulangan Siswa Hari Jumat"
+                  className="w-full text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900 font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Pengantar / Isi Informasi *
+                </label>
+                <textarea
+                  rows={6}
+                  required
+                  value={infoContent}
+                  onChange={(e) => setInfoContent(e.target.value)}
+                  placeholder="Ayah/Bunda, kami informasikan bahwa..."
+                  className="w-full text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900 leading-relaxed"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Bisa ditulis langsung seperti pengantar WhatsApp kepada orang tua.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Sasaran Kelas / Fase *
+                </label>
+                <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  {GRADE_OPTIONS.map((grade) => {
+                    const isSelected = infoGrades.includes(grade);
+
+                    return (
+                      <button
+                        type="button"
+                        key={grade}
+                        onClick={() => toggleInfoGradeSelection(grade)}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                          isSelected
+                            ? 'bg-blue-900 text-white shadow-xs'
+                            : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        {grade}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Tanggal Publikasi
+                  </label>
+                  <input
+                    type="date"
+                    value={infoPublishDate}
+                    onChange={(e) => setInfoPublishDate(e.target.value)}
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Tautan Tambahan (Opsional)
+                  </label>
+                  <input
+                    type="url"
+                    value={infoLink}
+                    onChange={(e) => setInfoLink(e.target.value)}
+                    placeholder="Google Form, Drive, website, dll."
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={infoPinned}
+                  onChange={(e) => setInfoPinned(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-amber-500"
+                />
+
+                <div>
+                  <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                    <Pin className="w-3.5 h-3.5 text-amber-700" />
+                    Tandai sebagai informasi penting
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5">
+                    Informasi penting akan mendapat penanda khusus di portal orang tua.
+                  </p>
+                </div>
+              </label>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={closeInfoModal}
+                  className="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-300"
+                >
+                  Batal
+                </button>
+
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 rounded-xl text-xs font-extrabold shadow-md"
+                >
+                  {editingInfo ? 'Simpan Perubahan' : 'Publikasikan Info'}
                 </button>
               </div>
             </form>
