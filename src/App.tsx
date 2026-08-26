@@ -722,7 +722,7 @@ export default function App() {
       alert(
         'Silakan login sebagai admin terlebih dahulu.'
       );
-      return;
+      return false;
     }
 
     const payload = {
@@ -751,7 +751,7 @@ export default function App() {
         `Informasi belum berhasil disimpan ke Supabase.\n\n${error.message}`
       );
 
-      return;
+      return false;
     }
 
     const savedCircular =
@@ -767,6 +767,8 @@ export default function App() {
     alert(
       'Informasi berhasil dipublikasikan.'
     );
+
+    return true;
   };
 
   // =========================================================
@@ -780,7 +782,7 @@ export default function App() {
       alert(
         'Silakan login sebagai admin terlebih dahulu.'
       );
-      return;
+      return false;
     }
 
     const payload =
@@ -806,7 +808,7 @@ export default function App() {
         `Perubahan belum berhasil disimpan.\n\n${error.message}`
       );
 
-      return;
+      return false;
     }
 
     const savedCircular =
@@ -830,6 +832,8 @@ export default function App() {
     alert(
       'Perubahan informasi berhasil disimpan.'
     );
+
+    return true;
   };
 
   // =========================================================
@@ -1703,20 +1707,12 @@ export default function App() {
                 onLogout={() => {
                   void handleLogout();
                 }}
-                onAddCircular={(
-                  newCirc
-                ) => {
-                  void handleAddCircular(
-                    newCirc
-                  );
-                }}
-                onUpdateCircular={(
-                  updatedCirc
-                ) => {
-                  void handleUpdateCircular(
-                    updatedCirc
-                  );
-                }}
+                onAddCircular={
+                  handleAddCircular
+                }
+                onUpdateCircular={
+                  handleUpdateCircular
+                }
                 onDeleteCircular={(id) => {
                   void handleDeleteCircular(
                     id
