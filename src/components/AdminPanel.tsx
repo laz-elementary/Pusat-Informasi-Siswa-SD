@@ -3,7 +3,7 @@ import { supabase } from '../src/lib/supabase';
 import { 
   Plus, Edit, Trash2, Pin,
   FileText, ExternalLink, Eye, ShieldCheck,
-  Bell, Clock, MapPin, Sparkles, Check, Calendar as CalendarIcon, Link as LinkIcon, RefreshCw, Megaphone, Newspaper, Upload, Image as ImageIcon, Loader2, Film, Images, XCircle
+  Bell, Clock, MapPin, Sparkles, Check, Calendar as CalendarIcon, Link as LinkIcon, RefreshCw, Megaphone, Newspaper, Upload, Image as ImageIcon, Loader2, Film, Images, XCircle, Users, BarChart3, Globe2, TrendingUp
 } from 'lucide-react';
 import { CircularLetter, EmergencyAlert, SchoolEvent, GradeLevel, ScheduledReminder, RecurrenceType, AdminUser } from '../types';
 
@@ -571,9 +571,110 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   adminUser,
   onLogout,
 }) => {
-  const [activeTab, setActiveTab] = useState<'surat' | 'info' | 'updates' | 'reminders' | 'calendar'>('surat');
+  const [activeTab, setActiveTab] = useState<'surat' | 'info' | 'updates' | 'reminders' | 'calendar' | 'analytics'>('surat');
   const [inputCalUrl, setInputCalUrl] = useState(calendarUrl);
   const [calSavedSuccess, setCalSavedSuccess] = useState(false);
+
+  interface VisitStats {
+    total_visits: number;
+    unique_visitors: number;
+    today_visits: number;
+    today_unique: number;
+    last_7_days_visits: number;
+    last_7_days_unique: number;
+    last_30_days_visits: number;
+    last_30_days_unique: number;
+  }
+
+  interface DailyVisitStat {
+    day: string;
+    visits: number;
+    unique_visitors: number;
+  }
+
+  const [visitStats, setVisitStats] =
+    useState<VisitStats | null>(null);
+
+  const [dailyVisitStats, setDailyVisitStats] =
+    useState<DailyVisitStat[]>([]);
+
+  const [
+    visitAnalyticsLoading,
+    setVisitAnalyticsLoading,
+  ] = useState(false);
+
+  const [
+    visitAnalyticsError,
+    setVisitAnalyticsError,
+  ] = useState('');
+
+  const loadVisitAnalytics =
+    async () => {
+      setVisitAnalyticsLoading(
+        true
+      );
+
+      setVisitAnalyticsError('');
+
+      try {
+        const {
+          data: summaryData,
+          error: summaryError,
+        } = await supabase.rpc(
+          'get_web_visit_stats'
+        );
+
+        if (summaryError) {
+          throw summaryError;
+        }
+
+        const {
+          data: dailyData,
+          error: dailyError,
+        } = await supabase.rpc(
+          'get_web_visit_daily_stats',
+          {
+            days_count: 14,
+          }
+        );
+
+        if (dailyError) {
+          throw dailyError;
+        }
+
+        setVisitStats(
+          (summaryData ??
+            null) as VisitStats | null
+        );
+
+        setDailyVisitStats(
+          (dailyData ??
+            []) as DailyVisitStat[]
+        );
+      } catch (error: any) {
+        console.error(
+          'Gagal memuat statistik kunjungan:',
+          error
+        );
+
+        setVisitAnalyticsError(
+          error?.message ||
+            'Statistik belum dapat dimuat.'
+        );
+      } finally {
+        setVisitAnalyticsLoading(
+          false
+        );
+      }
+    };
+
+  useEffect(() => {
+    if (
+      activeTab === 'analytics'
+    ) {
+      void loadVisitAnalytics();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     setInputCalUrl(calendarUrl);
@@ -2500,6 +2601,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           Pengingat Terjadwal / Rutin ({reminderList.length})
         </button>
         <button
+          onClick={() =>
+            setActiveTab('analytics')
+          }
+          className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            activeTab === 'analytics'
+              ? 'bg-violet-700 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          Statistik Kunjungan
+        </button>
+
+        <button
           onClick={() => setActiveTab('calendar')}
           className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
             activeTab === 'calendar' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
@@ -3037,6 +3152,269 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Tab Content: Statistik Kunjungan */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-violet-700" />
+                  Statistik Kunjungan Portal Orang Tua
+                </h3>
+
+                <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
+                  Menghitung kunjungan dari Google Sites / embed.
+                  Pengunjung unik merupakan perkiraan berdasarkan browser/perangkat anonim,
+                  bukan nama atau identitas orang tua.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void loadVisitAnalytics()
+                }
+                disabled={
+                  visitAnalyticsLoading
+                }
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-60 text-xs font-bold text-slate-700 shrink-0"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${
+                    visitAnalyticsLoading
+                      ? 'animate-spin'
+                      : ''
+                  }`}
+                />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {visitAnalyticsError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+              <strong>Statistik belum dapat dimuat.</strong>
+              <div className="mt-1 text-xs">
+                {visitAnalyticsError}
+              </div>
+            </div>
+          ) : visitAnalyticsLoading &&
+            !visitStats ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto text-violet-700" />
+              <p className="text-xs text-slate-500 mt-2">
+                Memuat statistik...
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-violet-700 flex items-center justify-center">
+                      <Users className="w-4 h-4" />
+                    </div>
+
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                      Semua Waktu
+                    </span>
+                  </div>
+
+                  <div className="mt-3 text-2xl font-extrabold text-slate-950">
+                    {visitStats?.unique_visitors ?? 0}
+                  </div>
+
+                  <div className="text-xs font-semibold text-slate-600">
+                    Pengunjung Unik
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    {visitStats?.total_visits ?? 0} total kunjungan
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                      <Eye className="w-4 h-4" />
+                    </div>
+
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                      Hari Ini
+                    </span>
+                  </div>
+
+                  <div className="mt-3 text-2xl font-extrabold text-slate-950">
+                    {visitStats?.today_unique ?? 0}
+                  </div>
+
+                  <div className="text-xs font-semibold text-slate-600">
+                    Pengunjung Hari Ini
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    {visitStats?.today_visits ?? 0} kunjungan
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                      <TrendingUp className="w-4 h-4" />
+                    </div>
+
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                      7 Hari
+                    </span>
+                  </div>
+
+                  <div className="mt-3 text-2xl font-extrabold text-slate-950">
+                    {visitStats?.last_7_days_unique ?? 0}
+                  </div>
+
+                  <div className="text-xs font-semibold text-slate-600">
+                    Pengunjung Unik
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    {visitStats?.last_7_days_visits ?? 0} kunjungan
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                      <Globe2 className="w-4 h-4" />
+                    </div>
+
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                      30 Hari
+                    </span>
+                  </div>
+
+                  <div className="mt-3 text-2xl font-extrabold text-slate-950">
+                    {visitStats?.last_30_days_unique ?? 0}
+                  </div>
+
+                  <div className="text-xs font-semibold text-slate-600">
+                    Pengunjung Unik
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    {visitStats?.last_30_days_visits ?? 0} kunjungan
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                <div className="flex items-center justify-between gap-3 mb-5">
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-900">
+                      Aktivitas 14 Hari Terakhir
+                    </h4>
+
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Batang menunjukkan jumlah kunjungan harian dari Google Sites / embed.
+                    </p>
+                  </div>
+                </div>
+
+                {dailyVisitStats.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {(() => {
+                      const maxVisits = Math.max(
+                        1,
+                        ...dailyVisitStats.map(
+                          (item) =>
+                            Number(item.visits) || 0
+                        )
+                      );
+
+                      return dailyVisitStats.map(
+                        (item) => {
+                          const visits =
+                            Number(item.visits) || 0;
+
+                          const uniqueVisitors =
+                            Number(
+                              item.unique_visitors
+                            ) || 0;
+
+                          const percent =
+                            Math.max(
+                              visits > 0 ? 4 : 0,
+                              (visits /
+                                maxVisits) *
+                                100
+                            );
+
+                          const date =
+                            new Date(
+                              `${item.day}T00:00:00`
+                            );
+
+                          const label =
+                            Number.isNaN(
+                              date.getTime()
+                            )
+                              ? item.day
+                              : date.toLocaleDateString(
+                                  'id-ID',
+                                  {
+                                    day: '2-digit',
+                                    month: 'short',
+                                  }
+                                );
+
+                          return (
+                            <div
+                              key={item.day}
+                              className="grid grid-cols-[62px_1fr_92px] sm:grid-cols-[80px_1fr_120px] gap-3 items-center"
+                            >
+                              <div className="text-[11px] font-semibold text-slate-500">
+                                {label}
+                              </div>
+
+                              <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-violet-600"
+                                  style={{
+                                    width: `${percent}%`,
+                                  }}
+                                />
+                              </div>
+
+                              <div className="text-[11px] text-right text-slate-500">
+                                <strong className="text-slate-800">
+                                  {visits}
+                                </strong>{' '}
+                                visit · {uniqueVisitors} unik
+                              </div>
+                            </div>
+                          );
+                        }
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="py-10 text-center text-xs text-slate-500">
+                    Belum ada data kunjungan yang tercatat.
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-[11px] sm:text-xs text-blue-950 leading-relaxed">
+                <strong>Catatan:</strong> satu orang tua yang membuka dari HP dan laptop
+                dapat dihitung sebagai dua pengunjung unik. Sebaliknya, beberapa orang yang
+                memakai browser/perangkat yang sama dapat dihitung sebagai satu.
+                Statistik ini cocok untuk melihat tingkat akses portal, bukan sebagai daftar hadir.
+              </div>
+            </>
+          )}
         </div>
       )}
 
