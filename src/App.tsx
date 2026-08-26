@@ -1253,7 +1253,7 @@ export default function App() {
       {/* PINNED INFO TERKINI — MAKSIMAL 3 */}
       {headerPinnedInfos.length > 0 &&
         activeView !== 'admin' && (
-          <div className="w-full bg-amber-50 border-b border-amber-200">
+          <div className="sticky top-0 z-40 w-full bg-amber-50/95 backdrop-blur-md border-b border-amber-200 shadow-sm">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
               <div className="flex flex-col lg:flex-row lg:items-center gap-2">
                 <div className="shrink-0">
