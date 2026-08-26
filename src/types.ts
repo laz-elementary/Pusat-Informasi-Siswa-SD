@@ -35,6 +35,7 @@ export interface CircularLetter {
   nomorSurat: string;
   title: string;
     imageUrl?: string;
+  mediaItems?: CircularMediaItem[];
 
 
   tipeKonten?: 'surat' | 'info' | 'elementary_update';
