@@ -61,6 +61,8 @@ export default function App() {
     summary: row.summary ?? '',
     content: row.isi ?? '',
 
+    imageUrl: row.image_url ?? undefined,
+
     actionRequired: row.action_required ?? undefined,
 
     attachmentName: row.attachment_name ?? undefined,
@@ -667,6 +669,9 @@ export default function App() {
 
     summary:
       circular.summary || '',
+
+    image_url:
+      circular.imageUrl || null,
 
     action_required:
       circular.actionRequired || null,
@@ -1329,6 +1334,23 @@ export default function App() {
                               : 'border-slate-200'
                           }`}
                         >
+                          {info.imageUrl && (
+                            <a
+                              href={info.imageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block bg-slate-50 border-b border-slate-200"
+                              title="Buka flyer ukuran penuh"
+                            >
+                              <img
+                                src={info.imageUrl}
+                                alt={`Flyer ${info.title}`}
+                                loading="lazy"
+                                className="w-full max-h-[620px] object-contain bg-slate-50"
+                              />
+                            </a>
+                          )}
+
                           <div className="p-5">
                             <div className="flex items-start justify-between gap-4">
                               <div className="min-w-0 flex-1">
