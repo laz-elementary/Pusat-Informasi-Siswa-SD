@@ -27,6 +27,72 @@ import {
 
 import { BookOpen, Lock, X, FileText, Megaphone, Pin, CalendarDays, ExternalLink, Newspaper } from 'lucide-react';
 
+
+const AutoLinkText: React.FC<{
+  text: string;
+}> = ({ text }) => {
+  const urlRegex =
+    /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+
+  const parts = text.split(urlRegex);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        const isUrl =
+          /^(?:https?:\/\/|www\.)/i.test(
+            part
+          );
+
+        if (!isUrl) {
+          return (
+            <React.Fragment
+              key={`${index}-${part}`}
+            >
+              {part}
+            </React.Fragment>
+          );
+        }
+
+        // Tanda baca penutup kalimat tidak ikut link.
+        const match = part.match(
+          /^(.*?)([),.;!?]+)?$/
+        );
+
+        const rawUrl =
+          match?.[1] ?? part;
+
+        const trailing =
+          match?.[2] ?? '';
+
+        const href =
+          rawUrl.startsWith('www.')
+            ? `https://${rawUrl}`
+            : rawUrl;
+
+        return (
+          <React.Fragment
+            key={`${index}-${part}`}
+          >
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900 break-all"
+              onClick={(event) =>
+                event.stopPropagation()
+              }
+            >
+              {rawUrl}
+            </a>
+            {trailing}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+};
+
 export default function App() {
   // =========================================================
   // CIRCULAR / INFORMASI — SUPABASE
@@ -1450,7 +1516,12 @@ export default function App() {
 
                                 {(info.summary || info.content) && (
                                   <p className="mt-2 text-sm text-slate-600 leading-relaxed whitespace-pre-line">
-                                    {info.summary || info.content}
+                                    <AutoLinkText
+                                      text={
+                                        info.summary ||
+                                        info.content
+                                      }
+                                    />
                                   </p>
                                 )}
                               </div>
@@ -1613,7 +1684,12 @@ export default function App() {
 
                             {(update.summary || update.content) && (
                               <p className="mt-2.5 text-sm text-slate-600 leading-relaxed whitespace-pre-line line-clamp-5">
-                                {update.summary || update.content}
+                                <AutoLinkText
+                                  text={
+                                    update.summary ||
+                                    update.content
+                                  }
+                                />
                               </p>
                             )}
 
