@@ -38,6 +38,7 @@ interface CircularDraftSnapshot {
   editingCircularId: string | null;
   title: string;
   nomor: string;
+  content: string;
   grades: string[];
   publishDate: string;
   effectiveDate: string;
@@ -711,6 +712,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [formNomor, setFormNomor] = useState(
     () => restoredCircularDraft?.nomor ?? ''
   );
+  const [formContent, setFormContent] = useState(
+    () => restoredCircularDraft?.content ?? ''
+  );
   const [formGrades, setFormGrades] = useState<string[]>(
     () => restoredCircularDraft?.grades ?? ['Semua Kelas']
   );
@@ -752,6 +756,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         null,
       title: formTitle,
       nomor: formNomor,
+      content: formContent,
       grades: formGrades,
       publishDate: formPublishDate,
       effectiveDate: formEffectiveDate,
@@ -769,6 +774,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     restoredCircularDraft,
     formTitle,
     formNomor,
+    formContent,
     formGrades,
     formPublishDate,
     formEffectiveDate,
@@ -2423,6 +2429,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setEditingCircular(null);
     setFormTitle('');
     setFormNomor(`0${Math.floor(Math.random() * 80 + 20)}/ED-SD/LAZ-JKT/VIII/2026`);
+    setFormContent('');
     setFormGrades(['Semua Kelas']);
     setFormPublishDate(new Date().toISOString().split('T')[0]);
     setFormEffectiveDate('');
@@ -2441,6 +2448,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setEditingCircular(circ);
     setFormTitle(circ.title);
     setFormNomor(circ.nomorSurat);
+    setFormContent(circ.content || circ.summary || '');
     setFormGrades(circ.gradeLevels);
     setFormPublishDate(circ.publishDate);
     setFormEffectiveDate(circ.effectiveDate);
@@ -2463,8 +2471,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         effectiveDate: formEffectiveDate || 'Segera',
         gdriveLink: formGdriveLink || undefined,
         urgency: formUrgency,
-        summary: editingCircular.summary || formTitle,
-        content: editingCircular.content || `Surat Edaran resmi SD Lazuardi mengenai ${formTitle}. Informasi dan instruksi lengkap dapat diakses melalui dokumen Google Drive yang terlampir.`,
+        summary: formContent.trim() || formTitle,
+        content:
+          formContent.trim() ||
+          editingCircular.content ||
+          `Informasi mengenai ${formTitle}.`,
         signedBy: editingCircular.signedBy || 'Kepala Sekolah SD Lazuardi',
       };
       onUpdateCircular(updated);
@@ -2478,8 +2489,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         effectiveDate: formEffectiveDate || 'Segera',
         gdriveLink: formGdriveLink || undefined,
         urgency: formUrgency,
-        summary: formTitle,
-        content: `Surat Edaran resmi SD Lazuardi mengenai ${formTitle}.\n\nSehubungan dengan agenda sekolah tersebut, seluruh orang tua/wali murid dimohon untuk memperhatikan dan mengikuti petunjuk teknis yang telah ditentukan. Dokumen lengkap, rincian jadwal, serta lampiran resmi dapat diakses dan diunduh melalui tautan Google Drive yang terlampir.\n\nDemikian surat edaran ini kami sampaikan. Atas perhatian, kerjasama, dan dukungan Bapak/Ibu sekalian kami ucapkan terima kasih.`,
+        summary: formContent.trim() || formTitle,
+        content:
+          formContent.trim() ||
+          `Informasi mengenai ${formTitle}.`,
         signedBy: 'Dra. Hj. Siti Nurjanah, M.Pd (Kepala Sekolah SD Lazuardi)',
         tembusan: ['Yayasan Lazuardi', 'Komite Sekolah', 'Wali Kelas'],
         isPinned: false,
@@ -4293,6 +4306,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   placeholder="Contoh: Pelaksanaan 3-Way Conference (3WC) & Laporan Belajar Siswa"
                   className="w-full text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-900 font-semibold"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Pengantar / Informasi Singkat
+                </label>
+                <textarea
+                  rows={6}
+                  value={formContent}
+                  onChange={(e) => setFormContent(e.target.value)}
+                  placeholder={`Contoh:\nAssalamu'alaikum warahmatullahi wabarakatuh,\n\nDear Parents,\n\nKami informasikan bahwa...`}
+                  className="w-full text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg p-3 text-slate-900 leading-relaxed"
+                />
+                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                  Teks ini akan tampil ketika orang tua membuka detail Surat Edaran.
+                  Bisa berupa salam, latar belakang singkat, atau poin utama sebelum membuka lampiran.
+                  Jika menulis URL seperti https://forms.gle/... link akan tetap dapat diklik di portal.
+                </p>
               </div>
 
               {/* Peruntukan Kelas / Jenjang Selector */}
