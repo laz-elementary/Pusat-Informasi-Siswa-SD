@@ -25,7 +25,7 @@ import {
   INITIAL_EVENTS,
 } from './data/initialData';
 
-import { BookOpen, Lock, X, FileText, Megaphone, Pin, CalendarDays, ExternalLink, Newspaper } from 'lucide-react';
+import { BookOpen, Lock, X, FileText, Megaphone, Pin, CalendarDays, ExternalLink, Newspaper, Sun, Moon } from 'lucide-react';
 
 
 const AutoLinkText: React.FC<{
@@ -93,7 +93,207 @@ const AutoLinkText: React.FC<{
   );
 };
 
+
+type PortalTheme = 'light' | 'dark';
+
+const PORTAL_THEME_STORAGE_KEY =
+  'lazuardi_portal_theme_v1';
+
+const PORTAL_DARK_THEME_CSS = `
+  .portal-dark {
+    color-scheme: dark;
+    background-color: #020617 !important;
+    color: #f8fafc !important;
+  }
+
+  .portal-dark .bg-white {
+    background-color: #0f172a !important;
+  }
+
+  .portal-dark .bg-slate-50 {
+    background-color: #111827 !important;
+  }
+
+  .portal-dark .bg-slate-100 {
+    background-color: #020617 !important;
+  }
+
+  .portal-dark .bg-slate-200 {
+    background-color: #1e293b !important;
+  }
+
+  .portal-dark .text-slate-950,
+  .portal-dark .text-slate-900,
+  .portal-dark .text-slate-800,
+  .portal-dark .text-slate-700 {
+    color: #f8fafc !important;
+  }
+
+  .portal-dark .text-slate-600,
+  .portal-dark .text-slate-500 {
+    color: #cbd5e1 !important;
+  }
+
+  .portal-dark .text-slate-400,
+  .portal-dark .text-slate-300 {
+    color: #94a3b8 !important;
+  }
+
+  .portal-dark .border-slate-100,
+  .portal-dark .border-slate-200,
+  .portal-dark .border-slate-300 {
+    border-color: #334155 !important;
+  }
+
+  .portal-dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+    border-color: #334155 !important;
+  }
+
+  .portal-dark input:not([type="checkbox"]):not([type="radio"]),
+  .portal-dark textarea,
+  .portal-dark select {
+    background-color: #111827 !important;
+    border-color: #475569 !important;
+    color: #f8fafc !important;
+  }
+
+  .portal-dark input::placeholder,
+  .portal-dark textarea::placeholder {
+    color: #94a3b8 !important;
+  }
+
+  .portal-dark option {
+    background-color: #111827 !important;
+    color: #f8fafc !important;
+  }
+
+  .portal-dark .bg-amber-50 {
+    background-color: #2a2110 !important;
+  }
+
+  .portal-dark [class*="bg-amber-50/"] {
+    background-color: rgba(42, 33, 16, 0.96) !important;
+  }
+
+  .portal-dark .text-amber-950,
+  .portal-dark .text-amber-900,
+  .portal-dark .text-amber-800,
+  .portal-dark .text-amber-700 {
+    color: #fde68a !important;
+  }
+
+  .portal-dark .border-amber-100,
+  .portal-dark .border-amber-200,
+  .portal-dark .border-amber-300 {
+    border-color: #92400e !important;
+  }
+
+  .portal-dark .bg-blue-50 {
+    background-color: #0b1d38 !important;
+  }
+
+  .portal-dark .text-blue-950,
+  .portal-dark .text-blue-900,
+  .portal-dark .text-blue-800,
+  .portal-dark .text-blue-700 {
+    color: #bfdbfe !important;
+  }
+
+  .portal-dark .border-blue-200 {
+    border-color: #1d4ed8 !important;
+  }
+
+  .portal-dark .bg-emerald-50 {
+    background-color: #08251d !important;
+  }
+
+  .portal-dark [class*="bg-emerald-50/"] {
+    background-color: rgba(8, 37, 29, 0.96) !important;
+  }
+
+  .portal-dark .text-emerald-950,
+  .portal-dark .text-emerald-800,
+  .portal-dark .text-emerald-700 {
+    color: #a7f3d0 !important;
+  }
+
+  .portal-dark .border-emerald-100,
+  .portal-dark .border-emerald-200,
+  .portal-dark .border-emerald-300 {
+    border-color: #047857 !important;
+  }
+
+  .portal-dark .bg-red-50 {
+    background-color: #351316 !important;
+  }
+
+  .portal-dark .text-red-800,
+  .portal-dark .text-red-700,
+  .portal-dark .text-red-600 {
+    color: #fecaca !important;
+  }
+
+  .portal-dark .border-red-200 {
+    border-color: #991b1b !important;
+  }
+
+  .portal-dark .bg-violet-50 {
+    background-color: #24143e !important;
+  }
+
+  .portal-dark .text-violet-700 {
+    color: #ddd6fe !important;
+  }
+
+  .portal-dark a.text-blue-700,
+  .portal-dark a.text-blue-800,
+  .portal-dark a.text-blue-900 {
+    color: #93c5fd !important;
+  }
+
+  .portal-dark [class*="hover:bg-slate-50"]:hover,
+  .portal-dark [class*="hover:bg-slate-100"]:hover {
+    background-color: #1e293b !important;
+  }
+
+  .portal-dark ::selection {
+    background-color: #f59e0b;
+    color: #0f172a;
+  }
+`;
+
 export default function App() {
+  const [portalTheme, setPortalTheme] =
+    useState<PortalTheme>(() => {
+      if (typeof window === 'undefined') {
+        return 'light';
+      }
+
+      try {
+        return window.localStorage.getItem(
+          PORTAL_THEME_STORAGE_KEY
+        ) === 'dark'
+          ? 'dark'
+          : 'light';
+      } catch {
+        return 'light';
+      }
+    });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        PORTAL_THEME_STORAGE_KEY,
+        portalTheme
+      );
+    } catch {
+      // Abaikan bila storage browser dibatasi.
+    }
+
+    document.documentElement.style.colorScheme =
+      portalTheme;
+  }, [portalTheme]);
+
   // =========================================================
   // CIRCULAR / INFORMASI — SUPABASE
   // =========================================================
@@ -1360,7 +1560,14 @@ export default function App() {
   // =========================================================
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans antialiased text-slate-900 selection:bg-amber-200">
+    <div
+      className={`min-h-screen flex flex-col font-sans antialiased selection:bg-amber-200 transition-colors duration-200 ${
+        portalTheme === 'dark'
+          ? 'portal-dark bg-slate-950 text-slate-100'
+          : 'bg-slate-100 text-slate-900'
+      }`}
+    >
+      <style>{PORTAL_DARK_THEME_CSS}</style>
       {/* HEADER */}
       <Header
         currentRole={
@@ -2027,6 +2234,45 @@ export default function App() {
         circular={selectedCircular}
         appUrl={appUrl}
       />
+
+      {/* LIGHT / DARK MODE */}
+      <button
+        type="button"
+        onClick={() =>
+          setPortalTheme((current) =>
+            current === 'light'
+              ? 'dark'
+              : 'light'
+          )
+        }
+        aria-label={
+          portalTheme === 'light'
+            ? 'Aktifkan Dark Mode'
+            : 'Aktifkan Light Mode'
+        }
+        title={
+          portalTheme === 'light'
+            ? 'Dark Mode'
+            : 'Light Mode'
+        }
+        className={`fixed left-4 bottom-20 z-[90] inline-flex items-center gap-2 rounded-full border px-3 py-2 shadow-lg backdrop-blur-md transition-all ${
+          portalTheme === 'dark'
+            ? 'bg-slate-800/95 border-slate-600 text-amber-300 hover:bg-slate-700'
+            : 'bg-white/95 border-slate-200 text-slate-700 hover:bg-slate-50'
+        }`}
+      >
+        {portalTheme === 'dark' ? (
+          <Sun className="w-4 h-4" />
+        ) : (
+          <Moon className="w-4 h-4" />
+        )}
+
+        <span className="hidden sm:inline text-xs font-bold">
+          {portalTheme === 'dark'
+            ? 'Light'
+            : 'Dark'}
+        </span>
+      </button>
 
       {/* =====================================================
           LOGIN ADMIN MODAL — SUPABASE EMAIL + PASSWORD
