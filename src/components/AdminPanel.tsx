@@ -288,6 +288,13 @@ interface ElementaryMediaDraftItem {
   type: 'image' | 'video';
   name: string;
   isExisting?: boolean;
+
+  // true = media baru sudah langsung di-upload ke Supabase,
+  // tetapi belum dipublikasikan ke posting Elementary Updates.
+  isDraftUpload?: boolean;
+
+  // path Supabase Storage untuk menghapus media draft bila dibatalkan.
+  storagePath?: string;
 }
 
 const ELEMENTARY_MEDIA_DRAFT_DB_NAME =
@@ -520,6 +527,8 @@ interface ElementaryUpdateDraftSnapshot {
     url: string;
     type: 'image' | 'video';
     name?: string;
+    isDraftUpload?: boolean;
+    storagePath?: string;
   }>;
 }
 
@@ -1238,6 +1247,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           media.name ||
           `Media ${index + 1}`,
         isExisting: true,
+        isDraftUpload:
+          media.isDraftUpload ?? false,
+        storagePath:
+          media.storagePath,
       }))
   );
 
@@ -1363,6 +1376,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           url: item.url!,
           type: item.type,
           name: item.name,
+          isDraftUpload:
+            item.isDraftUpload ?? false,
+          storagePath:
+            item.storagePath,
         })),
     };
 
@@ -1406,6 +1423,53 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     void clearElementaryMediaDraftFiles();
   };
 
+  const persistElementaryUpdateDraftNow = (
+    mediaItems: ElementaryMediaDraftItem[]
+  ) => {
+    if (
+      typeof window === 'undefined'
+    ) {
+      return;
+    }
+
+    const snapshot:
+      ElementaryUpdateDraftSnapshot = {
+      isOpen: true,
+      editingUpdateId:
+        editingElementaryUpdate?.id ??
+        restoredElementaryUpdateDraft?.editingUpdateId ??
+        null,
+      title: updateTitle,
+      content: updateContent,
+      grades: updateGrades,
+      publishDate:
+        updatePublishDate,
+      link: updateLink,
+      isFeatured:
+        updateFeatured,
+      existingMedia: mediaItems
+        .filter(
+          (item) =>
+            item.url
+        )
+        .map((item) => ({
+          url: item.url!,
+          type: item.type,
+          name: item.name,
+          isDraftUpload:
+            item.isDraftUpload ??
+            false,
+          storagePath:
+            item.storagePath,
+        })),
+    };
+
+    window.localStorage.setItem(
+      ELEMENTARY_UPDATE_DRAFT_STORAGE_KEY,
+      JSON.stringify(snapshot)
+    );
+  };
+
   const resetElementaryUpdateForm = () => {
     setEditingElementaryUpdate(null);
     setUpdateTitle('');
@@ -1437,10 +1501,128 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const closeElementaryUpdateModal = () => {
+    // Tombol Batal/X berarti draft memang dibatalkan,
+    // jadi media baru yang sudah ter-upload dibersihkan.
+    updateMediaItems
+      .filter(
+        (item) =>
+          item.isDraftUpload &&
+          item.storagePath
+      )
+      .forEach(
+        (item) => {
+          void deleteElementaryDraftStorageFile(
+            item.storagePath
+          );
+        }
+      );
+
     setShowElementaryUpdateModal(false);
     clearElementaryUpdateDraft();
     resetElementaryUpdateForm();
   };
+
+  const uploadElementaryMediaImmediately =
+    async (
+      file: File,
+      mediaType: 'image' | 'video'
+    ): Promise<{
+      url: string;
+      storagePath: string;
+    }> => {
+      const extension =
+        file.name
+          .split('.')
+          .pop()
+          ?.toLowerCase() ||
+        (mediaType === 'video'
+          ? 'mp4'
+          : 'jpg');
+
+      const safeName =
+        file.name
+          .replace(/\.[^/.]+$/, '')
+          .toLowerCase()
+          .replace(
+            /[^a-z0-9]+/g,
+            '-'
+          )
+          .replace(
+            /^-+|-+$/g,
+            ''
+          )
+          .slice(0, 60) ||
+        'media';
+
+      const storagePath =
+        `drafts/${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}-${safeName}.${extension}`;
+
+      const { error } =
+        await supabase.storage
+          .from(
+            'elementary-media'
+          )
+          .upload(
+            storagePath,
+            file,
+            {
+              cacheControl:
+                '3600',
+              upsert: false,
+              contentType:
+                file.type,
+            }
+          );
+
+      if (error) {
+        throw error;
+      }
+
+      const { data } =
+        supabase.storage
+          .from(
+            'elementary-media'
+          )
+          .getPublicUrl(
+            storagePath
+          );
+
+      if (!data.publicUrl) {
+        throw new Error(
+          `URL ${file.name} tidak berhasil dibuat.`
+        );
+      }
+
+      return {
+        url: data.publicUrl,
+        storagePath,
+      };
+    };
+
+  const deleteElementaryDraftStorageFile =
+    async (
+      storagePath?: string
+    ) => {
+      if (!storagePath) return;
+
+      const { error } =
+        await supabase.storage
+          .from(
+            'elementary-media'
+          )
+          .remove([
+            storagePath,
+          ]);
+
+      if (error) {
+        console.warn(
+          'Gagal membersihkan media draft:',
+          error
+        );
+      }
+    };
 
   const handleElementaryMediaChange =
     async (
@@ -1449,6 +1631,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const selectedFiles = Array.from(
         e.target.files ?? []
       );
+
+      // Penting: reset input supaya file yang sama
+      // dapat dipilih lagi jika upload gagal.
+      e.target.value = '';
 
       if (selectedFiles.length === 0) {
         return;
@@ -1461,8 +1647,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         alert(
           'Maksimal 6 foto/video untuk satu Elementary Update.'
         );
-
-        e.target.value = '';
         return;
       }
 
@@ -1472,112 +1656,157 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           remainingSlots
         );
 
-      const nextItems:
-        ElementaryMediaDraftItem[] = [];
+      setElementaryMediaUploading(
+        true
+      );
 
-      for (const file of files) {
-        const isImage =
-          [
-            'image/jpeg',
-            'image/png',
-            'image/webp',
-          ].includes(file.type);
+      try {
+        for (const file of files) {
+          const isImage =
+            [
+              'image/jpeg',
+              'image/png',
+              'image/webp',
+            ].includes(file.type);
 
-        const isVideo =
-          [
-            'video/mp4',
-            'video/webm',
-          ].includes(file.type);
+          const isVideo =
+            [
+              'video/mp4',
+              'video/webm',
+            ].includes(file.type);
 
-        if (!isImage && !isVideo) {
-          alert(
-            `${file.name}: format tidak didukung. Gunakan JPG, PNG, WEBP, MP4, atau WEBM.`
+          if (!isImage && !isVideo) {
+            alert(
+              `${file.name}: format tidak didukung. Gunakan JPG, PNG, WEBP, MP4, atau WEBM.`
+            );
+            continue;
+          }
+
+          const maxSize = isImage
+            ? 10 * 1024 * 1024
+            : 50 * 1024 * 1024;
+
+          if (file.size > maxSize) {
+            alert(
+              isImage
+                ? `${file.name}: foto maksimal 10 MB.`
+                : `${file.name}: video maksimal 50 MB.`
+            );
+            continue;
+          }
+
+          const mediaType:
+            'image' | 'video' =
+            isVideo
+              ? 'video'
+              : 'image';
+
+          // Upload LANGSUNG saat file dipilih.
+          // Setelah ini preview tidak bergantung pada blob browser.
+          const uploaded =
+            await uploadElementaryMediaImmediately(
+              file,
+              mediaType
+            );
+
+          const uploadedItem:
+            ElementaryMediaDraftItem = {
+            id: `draft-upload-${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2)}`,
+            url: uploaded.url,
+            previewUrl:
+              uploaded.url,
+            type: mediaType,
+            name: file.name,
+            isExisting: true,
+            isDraftUpload: true,
+            storagePath:
+              uploaded.storagePath,
+          };
+
+          setUpdateMediaItems(
+            (current) => {
+              const next = [
+                ...current,
+                uploadedItem,
+              ];
+
+              // Simpan URL Supabase ke localStorage
+              // pada saat yang sama, tanpa menunggu useEffect.
+              persistElementaryUpdateDraftNow(
+                next
+              );
+
+              return next;
+            }
           );
-          continue;
         }
-
-        const maxSize = isImage
-          ? 10 * 1024 * 1024
-          : 50 * 1024 * 1024;
-
-        if (file.size > maxSize) {
-          alert(
-            isImage
-              ? `${file.name}: foto maksimal 10 MB.`
-              : `${file.name}: video maksimal 50 MB.`
-          );
-          continue;
-        }
-
-        nextItems.push({
-          id: `new-${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2)}`,
-          file,
-          previewUrl:
-            URL.createObjectURL(file),
-          type: isVideo
-            ? 'video'
-            : 'image',
-          name: file.name,
-          isExisting: false,
-        });
-      }
-
-      if (nextItems.length > 0) {
-        const combined = [
-          ...updateMediaItems,
-          ...nextItems,
-        ];
-
-        setUpdateMediaItems(
-          combined
+      } catch (error: any) {
+        console.error(
+          'Gagal upload media draft Elementary Updates:',
+          error
         );
 
-        try {
-          await saveElementaryMediaDraftFiles(
-            combined
-          );
-        } catch (error) {
-          console.warn(
-            'Media draft tidak dapat disimpan:',
+        alert(
+          getElementaryMediaUploadError(
             error
-          );
-        }
+          )
+        );
+      } finally {
+        setElementaryMediaUploading(
+          false
+        );
       }
-
-      e.target.value = '';
     };
 
   const removeElementaryMedia = (
     id: string
   ) => {
+    const removing =
+      updateMediaItems.find(
+        (item) =>
+          item.id === id
+      );
+
     setUpdateMediaItems(
       (current) => {
-        const removing =
-          current.find(
+        const next =
+          current.filter(
             (item) =>
-              item.id === id
+              item.id !== id
           );
 
-        if (
-          removing &&
-          !removing.isExisting &&
-          removing.previewUrl.startsWith(
-            'blob:'
-          )
-        ) {
-          URL.revokeObjectURL(
-            removing.previewUrl
-          );
-        }
-
-        return current.filter(
-          (item) =>
-            item.id !== id
+        persistElementaryUpdateDraftNow(
+          next
         );
+
+        return next;
       }
     );
+
+    // Jangan hapus file media yang sudah menjadi bagian
+    // dari posting lama. Hanya hapus media draft baru.
+    if (
+      removing?.isDraftUpload &&
+      removing.storagePath
+    ) {
+      void deleteElementaryDraftStorageFile(
+        removing.storagePath
+      );
+    }
+
+    if (
+      removing &&
+      !removing.isExisting &&
+      removing.previewUrl.startsWith(
+        'blob:'
+      )
+    ) {
+      URL.revokeObjectURL(
+        removing.previewUrl
+      );
+    }
   };
 
   const uploadElementaryMedia =
@@ -1780,6 +2009,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             media.name ||
             `Media ${index + 1}`,
           isExisting: true,
+          isDraftUpload: false,
         })
       )
     );
@@ -3139,6 +3369,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               />
                             )}
 
+                            {media.url && (
+                              <div className="absolute top-2 left-2 px-2 py-1 rounded-md bg-emerald-700/90 text-white text-[10px] font-bold">
+                                Tersimpan
+                              </div>
+                            )}
+
                             <div className="p-2.5 flex items-center justify-between gap-2">
                               <div className="min-w-0 flex items-center gap-2">
                                 {media.type === 'video' ? (
@@ -3192,13 +3428,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
 
                       <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-emerald-800">
-                        <Upload className="w-3.5 h-3.5" />
-                        Pilih Foto / Video
+                        {elementaryMediaUploading ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Upload className="w-3.5 h-3.5" />
+                        )}
+                        {elementaryMediaUploading
+                          ? 'Mengunggah...'
+                          : 'Pilih Foto / Video'}
                       </span>
 
                       <input
                         type="file"
                         multiple
+                        disabled={
+                          elementaryMediaUploading
+                        }
                         accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
                         onChange={
                           handleElementaryMediaChange
@@ -3216,7 +3461,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
 
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Media tersimpan sebagai draft browser sampai update dipublikasikan, jadi tidak hilang saat pindah tab.
+                  Foto/video langsung disimpan ke Supabase saat dipilih, jadi tetap ada walaupun pindah tab atau refresh sebelum dipublikasikan.
                 </p>
               </div>
 
