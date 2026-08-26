@@ -79,6 +79,206 @@ const readInfoDraft = (): InfoDraftSnapshot | null => {
 };
 
 
+
+const INFO_DRAFT_FILE_DB_NAME =
+  'lazuardi-info-terkini-draft-db';
+
+const INFO_DRAFT_FILE_STORE_NAME =
+  'draft-files';
+
+const INFO_DRAFT_FILE_KEY =
+  'info-terkini-flyer';
+
+interface StoredInfoDraftFile {
+  blob: Blob;
+  name: string;
+  type: string;
+  lastModified: number;
+}
+
+const openInfoDraftFileDb = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(
+      INFO_DRAFT_FILE_DB_NAME,
+      1
+    );
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+
+      if (
+        !db.objectStoreNames.contains(
+          INFO_DRAFT_FILE_STORE_NAME
+        )
+      ) {
+        db.createObjectStore(
+          INFO_DRAFT_FILE_STORE_NAME
+        );
+      }
+    };
+
+    request.onsuccess = () =>
+      resolve(request.result);
+
+    request.onerror = () =>
+      reject(request.error);
+  });
+};
+
+const saveInfoDraftFileToBrowser = async (
+  file: File
+) => {
+  if (
+    typeof window === 'undefined' ||
+    !('indexedDB' in window)
+  ) {
+    return;
+  }
+
+  const db = await openInfoDraftFileDb();
+
+  try {
+    await new Promise<void>(
+      (resolve, reject) => {
+        const transaction = db.transaction(
+          INFO_DRAFT_FILE_STORE_NAME,
+          'readwrite'
+        );
+
+        const store =
+          transaction.objectStore(
+            INFO_DRAFT_FILE_STORE_NAME
+          );
+
+        const storedFile: StoredInfoDraftFile = {
+          blob: file,
+          name: file.name,
+          type: file.type,
+          lastModified: file.lastModified,
+        };
+
+        store.put(
+          storedFile,
+          INFO_DRAFT_FILE_KEY
+        );
+
+        transaction.oncomplete = () =>
+          resolve();
+
+        transaction.onerror = () =>
+          reject(transaction.error);
+
+        transaction.onabort = () =>
+          reject(transaction.error);
+      }
+    );
+  } finally {
+    db.close();
+  }
+};
+
+const readInfoDraftFileFromBrowser =
+  async (): Promise<File | null> => {
+    if (
+      typeof window === 'undefined' ||
+      !('indexedDB' in window)
+    ) {
+      return null;
+    }
+
+    const db = await openInfoDraftFileDb();
+
+    try {
+      return await new Promise<File | null>(
+        (resolve, reject) => {
+          const transaction = db.transaction(
+            INFO_DRAFT_FILE_STORE_NAME,
+            'readonly'
+          );
+
+          const store =
+            transaction.objectStore(
+              INFO_DRAFT_FILE_STORE_NAME
+            );
+
+          const request = store.get(
+            INFO_DRAFT_FILE_KEY
+          );
+
+          request.onsuccess = () => {
+            const value =
+              request.result as
+                | StoredInfoDraftFile
+                | undefined;
+
+            if (!value) {
+              resolve(null);
+              return;
+            }
+
+            resolve(
+              new File(
+                [value.blob],
+                value.name,
+                {
+                  type: value.type,
+                  lastModified:
+                    value.lastModified,
+                }
+              )
+            );
+          };
+
+          request.onerror = () =>
+            reject(request.error);
+        }
+      );
+    } finally {
+      db.close();
+    }
+  };
+
+const clearInfoDraftFileFromBrowser =
+  async () => {
+    if (
+      typeof window === 'undefined' ||
+      !('indexedDB' in window)
+    ) {
+      return;
+    }
+
+    const db = await openInfoDraftFileDb();
+
+    try {
+      await new Promise<void>(
+        (resolve, reject) => {
+          const transaction = db.transaction(
+            INFO_DRAFT_FILE_STORE_NAME,
+            'readwrite'
+          );
+
+          transaction
+            .objectStore(
+              INFO_DRAFT_FILE_STORE_NAME
+            )
+            .delete(INFO_DRAFT_FILE_KEY);
+
+          transaction.oncomplete = () =>
+            resolve();
+
+          transaction.onerror = () =>
+            reject(transaction.error);
+
+          transaction.onabort = () =>
+            reject(transaction.error);
+        }
+      );
+    } finally {
+      db.close();
+    }
+  };
+
+
 const ELEMENTARY_UPDATE_DRAFT_STORAGE_KEY =
   'lazuardi_admin_elementary_update_draft_v1';
 
@@ -290,6 +490,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [infoUploading, setInfoUploading] = useState(false);
 
+  const [
+    infoDraftImageRestored,
+    setInfoDraftImageRestored,
+  ] = useState(false);
+
   const infoItems = circulars.filter(
     (item) => item.tipeKonten === 'info'
   );
@@ -297,6 +502,55 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const suratItems = circulars.filter(
     (item) => (item.tipeKonten ?? 'surat') === 'surat'
   );
+
+  useEffect(() => {
+    if (infoDraftImageRestored) return;
+
+    setInfoDraftImageRestored(true);
+
+    if (
+      !restoredInfoDraft?.isOpen ||
+      restoredInfoDraft.imageUrl
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const restoreDraftImage = async () => {
+      try {
+        const storedFile =
+          await readInfoDraftFileFromBrowser();
+
+        if (
+          cancelled ||
+          !storedFile
+        ) {
+          return;
+        }
+
+        const previewUrl =
+          URL.createObjectURL(storedFile);
+
+        setInfoImageFile(storedFile);
+        setInfoImagePreview(previewUrl);
+      } catch (error) {
+        console.warn(
+          'Draft flyer tidak dapat dipulihkan:',
+          error
+        );
+      }
+    };
+
+    void restoreDraftImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    restoredInfoDraft,
+    infoDraftImageRestored,
+  ]);
 
   useEffect(() => {
     const editingId = restoredInfoDraft?.editingInfoId;
@@ -347,8 +601,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const clearInfoDraft = () => {
     if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(INFO_DRAFT_STORAGE_KEY);
+      window.localStorage.removeItem(
+        INFO_DRAFT_STORAGE_KEY
+      );
     }
+
+    void clearInfoDraftFileFromBrowser();
   };
 
   const resetInfoForm = () => {
@@ -376,7 +634,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     resetInfoForm();
   };
 
-  const handleInfoImageChange = (
+  const handleInfoImageChange = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
@@ -393,36 +651,120 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       alert(
         'Format flyer harus JPG, JPEG, PNG, atau WEBP.'
       );
+
       e.target.value = '';
       return;
     }
 
-    const maxSize = 5 * 1024 * 1024;
+    const maxSize =
+      5 * 1024 * 1024;
 
     if (file.size > maxSize) {
-      alert('Ukuran flyer maksimal 5 MB.');
+      alert(
+        'Ukuran flyer maksimal 5 MB.'
+      );
+
       e.target.value = '';
       return;
     }
 
-    if (infoImagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(infoImagePreview);
+    if (
+      infoImagePreview.startsWith(
+        'blob:'
+      )
+    ) {
+      URL.revokeObjectURL(
+        infoImagePreview
+      );
     }
 
-    const previewUrl = URL.createObjectURL(file);
+    const previewUrl =
+      URL.createObjectURL(file);
 
+    // Jika mengganti gambar lama,
+    // URL lama tidak dipakai untuk draft baru.
+    setInfoImageUrl('');
     setInfoImageFile(file);
     setInfoImagePreview(previewUrl);
+
+    try {
+      await saveInfoDraftFileToBrowser(
+        file
+      );
+    } catch (error) {
+      console.warn(
+        'Flyer tidak dapat disimpan ke draft browser:',
+        error
+      );
+    }
+
+    // Memungkinkan memilih ulang file dengan nama sama.
+    e.target.value = '';
   };
 
   const removeInfoImage = () => {
-    if (infoImagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(infoImagePreview);
+    if (
+      infoImagePreview.startsWith(
+        'blob:'
+      )
+    ) {
+      URL.revokeObjectURL(
+        infoImagePreview
+      );
     }
 
     setInfoImageFile(null);
     setInfoImageUrl('');
     setInfoImagePreview('');
+
+    void clearInfoDraftFileFromBrowser();
+  };
+
+  const getInfoImageUploadErrorMessage = (
+    error: any
+  ) => {
+    const rawMessage = String(
+      error?.message ||
+        error?.error ||
+        error ||
+        ''
+    );
+
+    if (
+      rawMessage
+        .toLowerCase()
+        .includes('bucket not found')
+    ) {
+      return [
+        'Bucket "info-images" belum ditemukan.',
+        '',
+        'Buka Supabase project yang dipakai Vercel,',
+        'lalu pastikan Storage memiliki bucket bernama:',
+        'info-images',
+        '',
+        'Setelah itu coba upload kembali.',
+      ].join('\\n');
+    }
+
+    if (
+      rawMessage
+        .toLowerCase()
+        .includes('row-level security') ||
+      rawMessage
+        .toLowerCase()
+        .includes('policy')
+    ) {
+      return [
+        'Upload ditolak oleh Storage Policy.',
+        '',
+        'Pastikan akun admin sedang login dan policy',
+        'bucket "info-images" sudah dijalankan.',
+      ].join('\\n');
+    }
+
+    return rawMessage
+      ? `Gagal mengunggah flyer: ${rawMessage}`
+      : 'Gagal mengunggah flyer. Silakan coba kembali.';
   };
 
   const uploadInfoImage = async (
@@ -580,6 +922,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       setShowInfoModal(false);
       clearInfoDraft();
+
+      await clearInfoDraftFileFromBrowser();
+
       resetInfoForm();
     } catch (error: any) {
       console.error(
@@ -588,9 +933,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       );
 
       alert(
-        error?.message
-          ? `Gagal mengunggah flyer: ${error.message}`
-          : 'Gagal mengunggah flyer. Silakan coba kembali.'
+        getInfoImageUploadErrorMessage(
+          error
+        )
       );
     } finally {
       setInfoUploading(false);
@@ -2273,6 +2618,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 <p className="text-[11px] text-slate-500 mt-1">
                   Flyer akan tampil langsung pada kartu Info Terkini di portal orang tua.
+                  Pilihan gambar juga disimpan sebagai draft browser sampai informasi dipublikasikan.
                 </p>
               </div>
 
