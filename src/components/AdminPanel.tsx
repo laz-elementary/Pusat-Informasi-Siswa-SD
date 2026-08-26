@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../src/lib/supabase';
 import { 
   Plus, Edit, Trash2, Pin,
   FileText, ExternalLink, Eye, ShieldCheck,
-  Bell, Clock, MapPin, Sparkles, Check, Calendar as CalendarIcon, Link as LinkIcon, RefreshCw, Megaphone, Newspaper
+  Bell, Clock, MapPin, Sparkles, Check, Calendar as CalendarIcon, Link as LinkIcon, RefreshCw, Megaphone, Newspaper, Upload, Image as ImageIcon, Loader2
 } from 'lucide-react';
 import { CircularLetter, EmergencyAlert, SchoolEvent, GradeLevel, ScheduledReminder, RecurrenceType, AdminUser } from '../types';
 
@@ -63,6 +64,7 @@ interface InfoDraftSnapshot {
   publishDate: string;
   link: string;
   isPinned: boolean;
+  imageUrl: string;
 }
 
 const readInfoDraft = (): InfoDraftSnapshot | null => {
@@ -276,6 +278,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     () => restoredInfoDraft?.isPinned ?? false
   );
 
+  const [infoImageUrl, setInfoImageUrl] = useState(
+    () => restoredInfoDraft?.imageUrl ?? ''
+  );
+
+  const [infoImageFile, setInfoImageFile] = useState<File | null>(null);
+
+  const [infoImagePreview, setInfoImagePreview] = useState(
+    () => restoredInfoDraft?.imageUrl ?? ''
+  );
+
+  const [infoUploading, setInfoUploading] = useState(false);
+
   const infoItems = circulars.filter(
     (item) => item.tipeKonten === 'info'
   );
@@ -311,6 +325,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       publishDate: infoPublishDate,
       link: infoLink,
       isPinned: infoPinned,
+      imageUrl: infoImageUrl,
     };
 
     window.localStorage.setItem(
@@ -327,6 +342,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     infoPublishDate,
     infoLink,
     infoPinned,
+    infoImageUrl,
   ]);
 
   const clearInfoDraft = () => {
@@ -343,12 +359,112 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setInfoPublishDate(new Date().toISOString().split('T')[0]);
     setInfoLink('');
     setInfoPinned(false);
+
+    if (infoImagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(infoImagePreview);
+    }
+
+    setInfoImageUrl('');
+    setInfoImageFile(null);
+    setInfoImagePreview('');
+    setInfoUploading(false);
   };
 
   const closeInfoModal = () => {
     setShowInfoModal(false);
     clearInfoDraft();
     resetInfoForm();
+  };
+
+  const handleInfoImageChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      alert(
+        'Format flyer harus JPG, JPEG, PNG, atau WEBP.'
+      );
+      e.target.value = '';
+      return;
+    }
+
+    const maxSize = 5 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      alert('Ukuran flyer maksimal 5 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    if (infoImagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(infoImagePreview);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+
+    setInfoImageFile(file);
+    setInfoImagePreview(previewUrl);
+  };
+
+  const removeInfoImage = () => {
+    if (infoImagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(infoImagePreview);
+    }
+
+    setInfoImageFile(null);
+    setInfoImageUrl('');
+    setInfoImagePreview('');
+  };
+
+  const uploadInfoImage = async (
+    file: File
+  ): Promise<string> => {
+    const extension =
+      file.name.split('.').pop()?.toLowerCase() || 'jpg';
+
+    const safeName = file.name
+      .replace(/\.[^/.]+$/, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'flyer';
+
+    const filePath =
+      `info-terkini/${Date.now()}-${safeName}.${extension}`;
+
+    const { error: uploadError } =
+      await supabase.storage
+        .from('info-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type,
+        });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
+      .from('info-images')
+      .getPublicUrl(filePath);
+
+    if (!data.publicUrl) {
+      throw new Error(
+        'URL flyer tidak berhasil dibuat.'
+      );
+    }
+
+    return data.publicUrl;
   };
 
   const toggleInfoGradeSelection = (grade: string) => {
@@ -385,60 +501,100 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     );
     setInfoLink(info.gdriveLink || '');
     setInfoPinned(info.isPinned ?? false);
+    setInfoImageUrl(info.imageUrl || '');
+    setInfoImageFile(null);
+    setInfoImagePreview(info.imageUrl || '');
 
     setShowInfoModal(true);
   };
 
-  const handleSaveInfo = (e: React.FormEvent) => {
+  const handleSaveInfo = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
-    if (!infoTitle.trim() || !infoContent.trim()) return;
-
-    if (editingInfo) {
-      const updatedInfo: CircularLetter = {
-        ...editingInfo,
-        tipeKonten: 'info',
-        nomorSurat: '',
-        title: infoTitle.trim(),
-        category: 'Info Terkini',
-        gradeLevels: infoGrades,
-        publishDate: infoPublishDate,
-        effectiveDate: '',
-        summary: infoContent.trim(),
-        content: infoContent.trim(),
-        gdriveLink: infoLink.trim() || undefined,
-        urgency: infoPinned ? 'penting' : 'normal',
-        isPinned: infoPinned,
-        signedBy: '',
-      };
-
-      onUpdateCircular(updatedInfo);
-    } else {
-      const newInfo: CircularLetter = {
-        id: `info-${Date.now()}`,
-        tipeKonten: 'info',
-        nomorSurat: '',
-        title: infoTitle.trim(),
-        category: 'Info Terkini',
-        gradeLevels: infoGrades,
-        publishDate: infoPublishDate,
-        effectiveDate: '',
-        urgency: infoPinned ? 'penting' : 'normal',
-        summary: infoContent.trim(),
-        content: infoContent.trim(),
-        gdriveLink: infoLink.trim() || undefined,
-        signedBy: '',
-        tembusan: [],
-        isPinned: infoPinned,
-        viewCount: 0,
-      };
-
-      onAddCircular(newInfo);
+    if (!infoTitle.trim() || !infoContent.trim()) {
+      return;
     }
 
-    setShowInfoModal(false);
-    clearInfoDraft();
-    resetInfoForm();
+    setInfoUploading(true);
+
+    try {
+      let finalImageUrl =
+        infoImageUrl || undefined;
+
+      if (infoImageFile) {
+        finalImageUrl =
+          await uploadInfoImage(infoImageFile);
+      }
+
+      if (editingInfo) {
+        const updatedInfo: CircularLetter = {
+          ...editingInfo,
+          tipeKonten: 'info',
+          nomorSurat: '',
+          title: infoTitle.trim(),
+          category: 'Info Terkini',
+          gradeLevels: infoGrades,
+          publishDate: infoPublishDate,
+          effectiveDate: '',
+          summary: infoContent.trim(),
+          content: infoContent.trim(),
+          imageUrl: finalImageUrl,
+          gdriveLink:
+            infoLink.trim() || undefined,
+          urgency: infoPinned
+            ? 'penting'
+            : 'normal',
+          isPinned: infoPinned,
+          signedBy: '',
+        };
+
+        onUpdateCircular(updatedInfo);
+      } else {
+        const newInfo: CircularLetter = {
+          id: `info-${Date.now()}`,
+          tipeKonten: 'info',
+          nomorSurat: '',
+          title: infoTitle.trim(),
+          category: 'Info Terkini',
+          gradeLevels: infoGrades,
+          publishDate: infoPublishDate,
+          effectiveDate: '',
+          urgency: infoPinned
+            ? 'penting'
+            : 'normal',
+          summary: infoContent.trim(),
+          content: infoContent.trim(),
+          imageUrl: finalImageUrl,
+          gdriveLink:
+            infoLink.trim() || undefined,
+          signedBy: '',
+          tembusan: [],
+          isPinned: infoPinned,
+          viewCount: 0,
+        };
+
+        onAddCircular(newInfo);
+      }
+
+      setShowInfoModal(false);
+      clearInfoDraft();
+      resetInfoForm();
+    } catch (error: any) {
+      console.error(
+        'Gagal mengunggah flyer Info Terkini:',
+        error
+      );
+
+      alert(
+        error?.message
+          ? `Gagal mengunggah flyer: ${error.message}`
+          : 'Gagal mengunggah flyer. Silakan coba kembali.'
+      );
+    } finally {
+      setInfoUploading(false);
+    }
   };
 
   // =========================================================
@@ -2046,6 +2202,81 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Flyer / Gambar Informasi
+                  <span className="font-normal text-slate-400">
+                    {' '}(Opsional)
+                  </span>
+                </label>
+
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                  {infoImagePreview ? (
+                    <div className="space-y-3">
+                      <div className="rounded-xl overflow-hidden border border-slate-200 bg-white">
+                        <img
+                          src={infoImagePreview}
+                          alt="Preview flyer Info Terkini"
+                          className="w-full max-h-[420px] object-contain bg-slate-50"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-900 hover:bg-blue-950 text-white text-xs font-bold cursor-pointer">
+                          <Upload className="w-3.5 h-3.5" />
+                          Ganti Gambar
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={handleInfoImageChange}
+                            className="hidden"
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={removeInfoImage}
+                          className="px-3 py-2 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-bold"
+                        >
+                          Hapus Gambar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-2 py-6 cursor-pointer text-center">
+                      <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                        <ImageIcon className="w-5 h-5" />
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">
+                          Upload flyer atau gambar informasi
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          JPG, PNG, atau WEBP • maksimal 5 MB
+                        </p>
+                      </div>
+
+                      <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-blue-900">
+                        <Upload className="w-3.5 h-3.5" />
+                        Pilih Gambar
+                      </span>
+
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleInfoImageChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Flyer akan tampil langsung pada kartu Info Terkini di portal orang tua.
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Sasaran Kelas / Fase *
                 </label>
@@ -2128,9 +2359,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 rounded-xl text-xs font-extrabold shadow-md"
+                  disabled={infoUploading}
+                  className="px-5 py-2 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-xs font-extrabold shadow-md inline-flex items-center gap-2"
                 >
-                  {editingInfo ? 'Simpan Perubahan' : 'Publikasikan Info'}
+                  {infoUploading && (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  )}
+
+                  {infoUploading
+                    ? 'Mengunggah Flyer...'
+                    : editingInfo
+                      ? 'Simpan Perubahan'
+                      : 'Publikasikan Info'}
                 </button>
               </div>
             </form>
