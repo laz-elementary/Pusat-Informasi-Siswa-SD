@@ -52,6 +52,69 @@ const getTypeLabel = (
   return 'Surat Edaran';
 };
 
+
+const AutoLinkText: React.FC<{
+  text: string;
+}> = ({ text }) => {
+  const urlRegex =
+    /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+
+  const parts = text.split(urlRegex);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        const isUrl =
+          /^(?:https?:\/\/|www\.)/i.test(
+            part
+          );
+
+        if (!isUrl) {
+          return (
+            <React.Fragment
+              key={`${index}-${part}`}
+            >
+              {part}
+            </React.Fragment>
+          );
+        }
+
+        // Tanda baca penutup kalimat tidak ikut link.
+        const match = part.match(
+          /^(.*?)([),.;!?]+)?$/
+        );
+
+        const rawUrl =
+          match?.[1] ?? part;
+
+        const trailing =
+          match?.[2] ?? '';
+
+        const href =
+          rawUrl.startsWith('www.')
+            ? `https://${rawUrl}`
+            : rawUrl;
+
+        return (
+          <React.Fragment
+            key={`${index}-${part}`}
+          >
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900 break-all"
+            >
+              {rawUrl}
+            </a>
+            {trailing}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+};
+
 export const CircularDetailModal: React.FC<
   CircularDetailModalProps
 > = ({
@@ -258,7 +321,9 @@ export const CircularDetailModal: React.FC<
             {bodyText && (
               <div className="mt-7 pt-6 border-t border-slate-100">
                 <div className="text-sm sm:text-[15px] text-slate-700 leading-7 whitespace-pre-line">
-                  {bodyText}
+                  <AutoLinkText
+                    text={bodyText}
+                  />
                 </div>
               </div>
             )}
@@ -271,9 +336,11 @@ export const CircularDetailModal: React.FC<
                 </p>
 
                 <p className="text-sm text-amber-950 whitespace-pre-line">
-                  {
-                    circular.actionRequired
-                  }
+                  <AutoLinkText
+                    text={
+                      circular.actionRequired
+                    }
+                  />
                 </p>
               </div>
             )}
