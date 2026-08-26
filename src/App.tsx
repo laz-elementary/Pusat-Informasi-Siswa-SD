@@ -187,6 +187,145 @@ export default function App() {
   }, []);
 
   // =========================================================
+  // ANONYMOUS VISIT ANALYTICS
+  // =========================================================
+  //
+  // Privacy-friendly:
+  // - tidak menyimpan nama/email parent;
+  // - visitor_id hanya ID anonim browser/perangkat;
+  // - satu kunjungan dicatat maksimal sekali tiap 30 menit.
+  //
+  // Google Sites biasanya muncul melalui document.referrer.
+  // Jika referrer disembunyikan browser tetapi app berada
+  // di dalam iframe, dicatat sebagai "embedded".
+
+  useEffect(() => {
+    const recordPortalVisit =
+      async () => {
+        if (
+          typeof window === 'undefined'
+        ) {
+          return;
+        }
+
+        const VISITOR_KEY =
+          'lazuardi_parent_visitor_id_v1';
+
+        const LAST_VISIT_KEY =
+          'lazuardi_parent_last_visit_v1';
+
+        const THIRTY_MINUTES =
+          30 * 60 * 1000;
+
+        let visitorId = '';
+
+        try {
+          visitorId =
+            window.localStorage.getItem(
+              VISITOR_KEY
+            ) || '';
+
+          if (!visitorId) {
+            visitorId =
+              typeof crypto !==
+                'undefined' &&
+              'randomUUID' in crypto
+                ? crypto.randomUUID()
+                : `visitor-${Date.now()}-${Math.random()
+                    .toString(36)
+                    .slice(2)}`;
+
+            window.localStorage.setItem(
+              VISITOR_KEY,
+              visitorId
+            );
+          }
+        } catch {
+          visitorId =
+            `temporary-${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2)}`;
+        }
+
+        let lastVisit = 0;
+
+        try {
+          lastVisit = Number(
+            window.localStorage.getItem(
+              LAST_VISIT_KEY
+            ) || 0
+          );
+        } catch {
+          // Storage dapat dibatasi pada beberapa browser.
+        }
+
+        const now = Date.now();
+
+        if (
+          lastVisit &&
+          now - lastVisit <
+            THIRTY_MINUTES
+        ) {
+          return;
+        }
+
+        const referrer =
+          document.referrer || '';
+
+        const isEmbedded =
+          window.self !== window.top;
+
+        const isGoogleSites =
+          referrer
+            .toLowerCase()
+            .includes(
+              'sites.google.com'
+            );
+
+        const source =
+          isGoogleSites
+            ? 'google_sites'
+            : isEmbedded
+              ? 'embedded'
+              : 'direct';
+
+        const { error } =
+          await supabase
+            .from('web_visits')
+            .insert({
+              visitor_id:
+                visitorId,
+              source,
+              page_path:
+                window.location.pathname,
+              is_embedded:
+                isEmbedded,
+            });
+
+        if (error) {
+          // Analytics tidak boleh mengganggu portal utama.
+          console.warn(
+            'Visit analytics belum dapat dicatat:',
+            error.message
+          );
+
+          return;
+        }
+
+        try {
+          window.localStorage.setItem(
+            LAST_VISIT_KEY,
+            String(now)
+          );
+        } catch {
+          // Abaikan jika storage browser dibatasi.
+        }
+      };
+
+    void recordPortalVisit();
+  }, []);
+
+  // =========================================================
   // ALERTS — LOCAL STORAGE
   // =========================================================
 
