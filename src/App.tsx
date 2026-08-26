@@ -1117,8 +1117,8 @@ export default function App() {
       )
     );
 
-  const headerPinnedInfo =
-    pinnedInfoCirculars[0] ?? null;
+  const headerPinnedInfos =
+    pinnedInfoCirculars.slice(0, 3);
 
   const elementaryUpdateCirculars = circulars.filter(
     (circ) => circ.tipeKonten === 'elementary_update'
@@ -1180,35 +1180,54 @@ export default function App() {
         isEmbedded={isEmbedded}
       />
 
-      {/* PINNED INFO TERKINI — HEADER STRIP */}
-      {headerPinnedInfo &&
+      {/* PINNED INFO TERKINI — MAKSIMAL 3 */}
+      {headerPinnedInfos.length > 0 &&
         activeView !== 'admin' && (
           <div className="w-full bg-amber-50 border-b border-amber-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveView('letters');
-                  setParentContentView('info');
-                  handleOpenDetail(
-                    headerPinnedInfo
-                  );
-                }}
-                className="w-full flex items-center gap-2 text-left group"
-              >
-                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-400 text-slate-950 px-2 py-0.5 text-[10px] sm:text-xs font-extrabold">
-                  <Pin className="w-3 h-3" />
-                  Info Penting
-                </span>
+              <div className="flex flex-col lg:flex-row lg:items-center gap-2">
+                <div className="shrink-0">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-400 text-slate-950 px-2 py-0.5 text-[10px] sm:text-xs font-extrabold">
+                    <Pin className="w-3 h-3" />
+                    Info Penting
+                  </span>
+                </div>
 
-                <span className="min-w-0 flex-1 truncate text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-blue-950">
-                  {headerPinnedInfo.title}
-                </span>
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1.5">
+                  {headerPinnedInfos.map(
+                    (info, index) => (
+                      <button
+                        key={info.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveView(
+                            'letters'
+                          );
+                          setParentContentView(
+                            'info'
+                          );
+                          handleOpenDetail(
+                            info
+                          );
+                        }}
+                        className="min-w-0 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-amber-100 transition-colors group"
+                      >
+                        <span className="shrink-0 w-5 h-5 rounded-full bg-white border border-amber-200 flex items-center justify-center text-[10px] font-extrabold text-amber-800">
+                          {index + 1}
+                        </span>
 
-                <span className="shrink-0 text-[10px] sm:text-xs font-bold text-blue-900">
-                  Lihat →
-                </span>
-              </button>
+                        <span className="min-w-0 flex-1 truncate text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-blue-950">
+                          {info.title}
+                        </span>
+
+                        <span className="shrink-0 text-[10px] font-bold text-blue-900">
+                          Lihat →
+                        </span>
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
