@@ -3,7 +3,7 @@ import { supabase } from '../src/lib/supabase';
 import { 
   Plus, Edit, Trash2, Pin,
   FileText, ExternalLink, Eye, ShieldCheck,
-  Bell, Clock, MapPin, Sparkles, Check, Calendar as CalendarIcon, Link as LinkIcon, RefreshCw, Megaphone, Newspaper, Upload, Image as ImageIcon, Loader2
+  Bell, Clock, MapPin, Sparkles, Check, Calendar as CalendarIcon, Link as LinkIcon, RefreshCw, Megaphone, Newspaper, Upload, Image as ImageIcon, Loader2, Film, Images, XCircle
 } from 'lucide-react';
 import { CircularLetter, EmergencyAlert, SchoolEvent, GradeLevel, ScheduledReminder, RecurrenceType, AdminUser } from '../types';
 
@@ -279,6 +279,231 @@ const clearInfoDraftFileFromBrowser =
   };
 
 
+
+interface ElementaryMediaDraftItem {
+  id: string;
+  file?: File;
+  url?: string;
+  previewUrl: string;
+  type: 'image' | 'video';
+  name: string;
+  isExisting?: boolean;
+}
+
+const ELEMENTARY_MEDIA_DRAFT_DB_NAME =
+  'lazuardi-elementary-media-draft-db';
+
+const ELEMENTARY_MEDIA_DRAFT_STORE_NAME =
+  'draft-media';
+
+const ELEMENTARY_MEDIA_DRAFT_KEY =
+  'elementary-update-media';
+
+interface StoredElementaryMediaFile {
+  id: string;
+  blob: Blob;
+  name: string;
+  type: string;
+  lastModified: number;
+  mediaType: 'image' | 'video';
+}
+
+const openElementaryMediaDraftDb =
+  (): Promise<IDBDatabase> => {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(
+        ELEMENTARY_MEDIA_DRAFT_DB_NAME,
+        1
+      );
+
+      request.onupgradeneeded = () => {
+        const db = request.result;
+
+        if (
+          !db.objectStoreNames.contains(
+            ELEMENTARY_MEDIA_DRAFT_STORE_NAME
+          )
+        ) {
+          db.createObjectStore(
+            ELEMENTARY_MEDIA_DRAFT_STORE_NAME
+          );
+        }
+      };
+
+      request.onsuccess = () =>
+        resolve(request.result);
+
+      request.onerror = () =>
+        reject(request.error);
+    });
+  };
+
+const saveElementaryMediaDraftFiles =
+  async (
+    items: ElementaryMediaDraftItem[]
+  ) => {
+    if (
+      typeof window === 'undefined' ||
+      !('indexedDB' in window)
+    ) {
+      return;
+    }
+
+    const files = items
+      .filter(
+        (item) =>
+          item.file && !item.isExisting
+      )
+      .map((item) => ({
+        id: item.id,
+        blob: item.file as Blob,
+        name: item.file!.name,
+        type: item.file!.type,
+        lastModified:
+          item.file!.lastModified,
+        mediaType: item.type,
+      }));
+
+    const db =
+      await openElementaryMediaDraftDb();
+
+    try {
+      await new Promise<void>(
+        (resolve, reject) => {
+          const tx = db.transaction(
+            ELEMENTARY_MEDIA_DRAFT_STORE_NAME,
+            'readwrite'
+          );
+
+          tx.objectStore(
+            ELEMENTARY_MEDIA_DRAFT_STORE_NAME
+          ).put(
+            files,
+            ELEMENTARY_MEDIA_DRAFT_KEY
+          );
+
+          tx.oncomplete = () => resolve();
+          tx.onerror = () =>
+            reject(tx.error);
+          tx.onabort = () =>
+            reject(tx.error);
+        }
+      );
+    } finally {
+      db.close();
+    }
+  };
+
+const readElementaryMediaDraftFiles =
+  async (): Promise<
+    ElementaryMediaDraftItem[]
+  > => {
+    if (
+      typeof window === 'undefined' ||
+      !('indexedDB' in window)
+    ) {
+      return [];
+    }
+
+    const db =
+      await openElementaryMediaDraftDb();
+
+    try {
+      return await new Promise(
+        (resolve, reject) => {
+          const tx = db.transaction(
+            ELEMENTARY_MEDIA_DRAFT_STORE_NAME,
+            'readonly'
+          );
+
+          const request = tx
+            .objectStore(
+              ELEMENTARY_MEDIA_DRAFT_STORE_NAME
+            )
+            .get(
+              ELEMENTARY_MEDIA_DRAFT_KEY
+            );
+
+          request.onsuccess = () => {
+            const files =
+              (request.result ??
+                []) as StoredElementaryMediaFile[];
+
+            resolve(
+              files.map((stored) => {
+                const file = new File(
+                  [stored.blob],
+                  stored.name,
+                  {
+                    type: stored.type,
+                    lastModified:
+                      stored.lastModified,
+                  }
+                );
+
+                return {
+                  id: stored.id,
+                  file,
+                  previewUrl:
+                    URL.createObjectURL(
+                      file
+                    ),
+                  type:
+                    stored.mediaType,
+                  name: stored.name,
+                  isExisting: false,
+                };
+              })
+            );
+          };
+
+          request.onerror = () =>
+            reject(request.error);
+        }
+      );
+    } finally {
+      db.close();
+    }
+  };
+
+const clearElementaryMediaDraftFiles =
+  async () => {
+    if (
+      typeof window === 'undefined' ||
+      !('indexedDB' in window)
+    ) {
+      return;
+    }
+
+    const db =
+      await openElementaryMediaDraftDb();
+
+    try {
+      await new Promise<void>(
+        (resolve, reject) => {
+          const tx = db.transaction(
+            ELEMENTARY_MEDIA_DRAFT_STORE_NAME,
+            'readwrite'
+          );
+
+          tx.objectStore(
+            ELEMENTARY_MEDIA_DRAFT_STORE_NAME
+          ).delete(
+            ELEMENTARY_MEDIA_DRAFT_KEY
+          );
+
+          tx.oncomplete = () => resolve();
+          tx.onerror = () =>
+            reject(tx.error);
+          tx.onabort = () =>
+            reject(tx.error);
+        }
+      );
+    } finally {
+      db.close();
+    }
+  };
+
 const ELEMENTARY_UPDATE_DRAFT_STORAGE_KEY =
   'lazuardi_admin_elementary_update_draft_v1';
 
@@ -291,6 +516,11 @@ interface ElementaryUpdateDraftSnapshot {
   publishDate: string;
   link: string;
   isFeatured: boolean;
+  existingMedia?: Array<{
+    url: string;
+    type: 'image' | 'video';
+    name?: string;
+  }>;
 }
 
 const readElementaryUpdateDraft =
@@ -991,9 +1221,95 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         false
     );
 
+  const [
+    updateMediaItems,
+    setUpdateMediaItems,
+  ] = useState<ElementaryMediaDraftItem[]>(
+    () =>
+      (
+        restoredElementaryUpdateDraft?.existingMedia ??
+        []
+      ).map((media, index) => ({
+        id: `existing-${index}-${media.url}`,
+        url: media.url,
+        previewUrl: media.url,
+        type: media.type,
+        name:
+          media.name ||
+          `Media ${index + 1}`,
+        isExisting: true,
+      }))
+  );
+
+  const [
+    elementaryMediaRestored,
+    setElementaryMediaRestored,
+  ] = useState(false);
+
+  const [
+    elementaryMediaUploading,
+    setElementaryMediaUploading,
+  ] = useState(false);
+
   const elementaryUpdateItems = circulars.filter(
     (item) => item.tipeKonten === 'elementary_update'
   );
+
+  useEffect(() => {
+    if (elementaryMediaRestored) return;
+
+    setElementaryMediaRestored(true);
+
+    if (
+      !restoredElementaryUpdateDraft?.isOpen
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const restoreFiles = async () => {
+      try {
+        const files =
+          await readElementaryMediaDraftFiles();
+
+        if (
+          cancelled ||
+          files.length === 0
+        ) {
+          return;
+        }
+
+        setUpdateMediaItems(
+          (current) => [
+            ...current,
+            ...files.filter(
+              (file) =>
+                !current.some(
+                  (item) =>
+                    item.id ===
+                    file.id
+                )
+            ),
+          ]
+        );
+      } catch (error) {
+        console.warn(
+          'Draft media Elementary Updates tidak dapat dipulihkan:',
+          error
+        );
+      }
+    };
+
+    void restoreFiles();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    elementaryMediaRestored,
+    restoredElementaryUpdateDraft,
+  ]);
 
   useEffect(() => {
     const editingId =
@@ -1037,6 +1353,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       publishDate: updatePublishDate,
       link: updateLink,
       isFeatured: updateFeatured,
+      existingMedia: updateMediaItems
+        .filter(
+          (item) =>
+            item.isExisting &&
+            item.url
+        )
+        .map((item) => ({
+          url: item.url!,
+          type: item.type,
+          name: item.name,
+        })),
     };
 
     window.localStorage.setItem(
@@ -1053,6 +1380,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     updatePublishDate,
     updateLink,
     updateFeatured,
+    updateMediaItems,
+  ]);
+
+  useEffect(() => {
+    if (!showElementaryUpdateModal) {
+      return;
+    }
+
+    void saveElementaryMediaDraftFiles(
+      updateMediaItems
+    );
+  }, [
+    showElementaryUpdateModal,
+    updateMediaItems,
   ]);
 
   const clearElementaryUpdateDraft = () => {
@@ -1061,6 +1402,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         ELEMENTARY_UPDATE_DRAFT_STORAGE_KEY
       );
     }
+
+    void clearElementaryMediaDraftFiles();
   };
 
   const resetElementaryUpdateForm = () => {
@@ -1073,6 +1416,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     );
     setUpdateLink('');
     setUpdateFeatured(false);
+
+    updateMediaItems.forEach(
+      (item) => {
+        if (
+          !item.isExisting &&
+          item.previewUrl.startsWith(
+            'blob:'
+          )
+        ) {
+          URL.revokeObjectURL(
+            item.previewUrl
+          );
+        }
+      }
+    );
+
+    setUpdateMediaItems([]);
+    setElementaryMediaUploading(false);
   };
 
   const closeElementaryUpdateModal = () => {
@@ -1080,6 +1441,286 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     clearElementaryUpdateDraft();
     resetElementaryUpdateForm();
   };
+
+  const handleElementaryMediaChange =
+    async (
+      e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const selectedFiles = Array.from(
+        e.target.files ?? []
+      );
+
+      if (selectedFiles.length === 0) {
+        return;
+      }
+
+      const remainingSlots =
+        6 - updateMediaItems.length;
+
+      if (remainingSlots <= 0) {
+        alert(
+          'Maksimal 6 foto/video untuk satu Elementary Update.'
+        );
+
+        e.target.value = '';
+        return;
+      }
+
+      const files =
+        selectedFiles.slice(
+          0,
+          remainingSlots
+        );
+
+      const nextItems:
+        ElementaryMediaDraftItem[] = [];
+
+      for (const file of files) {
+        const isImage =
+          [
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+          ].includes(file.type);
+
+        const isVideo =
+          [
+            'video/mp4',
+            'video/webm',
+          ].includes(file.type);
+
+        if (!isImage && !isVideo) {
+          alert(
+            `${file.name}: format tidak didukung. Gunakan JPG, PNG, WEBP, MP4, atau WEBM.`
+          );
+          continue;
+        }
+
+        const maxSize = isImage
+          ? 10 * 1024 * 1024
+          : 50 * 1024 * 1024;
+
+        if (file.size > maxSize) {
+          alert(
+            isImage
+              ? `${file.name}: foto maksimal 10 MB.`
+              : `${file.name}: video maksimal 50 MB.`
+          );
+          continue;
+        }
+
+        nextItems.push({
+          id: `new-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2)}`,
+          file,
+          previewUrl:
+            URL.createObjectURL(file),
+          type: isVideo
+            ? 'video'
+            : 'image',
+          name: file.name,
+          isExisting: false,
+        });
+      }
+
+      if (nextItems.length > 0) {
+        const combined = [
+          ...updateMediaItems,
+          ...nextItems,
+        ];
+
+        setUpdateMediaItems(
+          combined
+        );
+
+        try {
+          await saveElementaryMediaDraftFiles(
+            combined
+          );
+        } catch (error) {
+          console.warn(
+            'Media draft tidak dapat disimpan:',
+            error
+          );
+        }
+      }
+
+      e.target.value = '';
+    };
+
+  const removeElementaryMedia = (
+    id: string
+  ) => {
+    setUpdateMediaItems(
+      (current) => {
+        const removing =
+          current.find(
+            (item) =>
+              item.id === id
+          );
+
+        if (
+          removing &&
+          !removing.isExisting &&
+          removing.previewUrl.startsWith(
+            'blob:'
+          )
+        ) {
+          URL.revokeObjectURL(
+            removing.previewUrl
+          );
+        }
+
+        return current.filter(
+          (item) =>
+            item.id !== id
+        );
+      }
+    );
+  };
+
+  const uploadElementaryMedia =
+    async (
+      item: ElementaryMediaDraftItem
+    ): Promise<{
+      url: string;
+      type: 'image' | 'video';
+      name: string;
+    }> => {
+      if (
+        item.isExisting &&
+        item.url
+      ) {
+        return {
+          url: item.url,
+          type: item.type,
+          name: item.name,
+        };
+      }
+
+      if (!item.file) {
+        throw new Error(
+          `File ${item.name} tidak tersedia.`
+        );
+      }
+
+      const extension =
+        item.file.name
+          .split('.')
+          .pop()
+          ?.toLowerCase() ||
+        (item.type === 'video'
+          ? 'mp4'
+          : 'jpg');
+
+      const safeName =
+        item.file.name
+          .replace(/\.[^/.]+$/, '')
+          .toLowerCase()
+          .replace(
+            /[^a-z0-9]+/g,
+            '-'
+          )
+          .replace(
+            /^-+|-+$/g,
+            ''
+          )
+          .slice(0, 60) ||
+        'media';
+
+      const filePath =
+        `updates/${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}-${safeName}.${extension}`;
+
+      const { error } =
+        await supabase.storage
+          .from(
+            'elementary-media'
+          )
+          .upload(
+            filePath,
+            item.file,
+            {
+              cacheControl:
+                '3600',
+              upsert: false,
+              contentType:
+                item.file.type,
+            }
+          );
+
+      if (error) {
+        throw error;
+      }
+
+      const { data } =
+        supabase.storage
+          .from(
+            'elementary-media'
+          )
+          .getPublicUrl(
+            filePath
+          );
+
+      if (!data.publicUrl) {
+        throw new Error(
+          `URL ${item.name} tidak berhasil dibuat.`
+        );
+      }
+
+      return {
+        url: data.publicUrl,
+        type: item.type,
+        name: item.name,
+      };
+    };
+
+  const getElementaryMediaUploadError =
+    (error: any) => {
+      const message = String(
+        error?.message ||
+          error?.error ||
+          error ||
+          ''
+      );
+
+      if (
+        message
+          .toLowerCase()
+          .includes(
+            'bucket not found'
+          )
+      ) {
+        return [
+          'Bucket "elementary-media" belum ditemukan.',
+          '',
+          'Jalankan SQL STEP10 pada project Supabase yang dipakai Vercel, lalu coba kembali.',
+        ].join('\\n');
+      }
+
+      if (
+        message
+          .toLowerCase()
+          .includes(
+            'row-level security'
+          ) ||
+        message
+          .toLowerCase()
+          .includes('policy')
+      ) {
+        return [
+          'Upload ditolak oleh Storage Policy.',
+          '',
+          'Pastikan admin sedang login dan policy bucket elementary-media sudah aktif.',
+        ].join('\\n');
+      }
+
+      return message
+        ? `Gagal upload media: ${message}`
+        : 'Gagal upload foto/video. Silakan coba kembali.';
+    };
 
   const toggleUpdateGradeSelection = (
     grade: string
@@ -1128,73 +1769,151 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setUpdateLink(update.gdriveLink || '');
     setUpdateFeatured(update.isPinned ?? false);
 
+    setUpdateMediaItems(
+      (update.mediaItems ?? []).map(
+        (media, index) => ({
+          id: `existing-${index}-${media.url}`,
+          url: media.url,
+          previewUrl: media.url,
+          type: media.type,
+          name:
+            media.name ||
+            `Media ${index + 1}`,
+          isExisting: true,
+        })
+      )
+    );
+
     setShowElementaryUpdateModal(true);
   };
 
-  const handleSaveElementaryUpdate = (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault();
+  const handleSaveElementaryUpdate =
+    async (
+      e: React.FormEvent
+    ) => {
+      e.preventDefault();
 
-    if (
-      !updateTitle.trim() ||
-      !updateContent.trim()
-    ) {
-      return;
-    }
+      if (
+        !updateTitle.trim() ||
+        !updateContent.trim()
+      ) {
+        return;
+      }
 
-    if (editingElementaryUpdate) {
-      const updatedItem: CircularLetter = {
-        ...editingElementaryUpdate,
-        tipeKonten: 'elementary_update',
-        nomorSurat: '',
-        title: updateTitle.trim(),
-        category: 'Elementary Updates',
-        gradeLevels: updateGrades,
-        publishDate: updatePublishDate,
-        effectiveDate: '',
-        summary: updateContent.trim(),
-        content: updateContent.trim(),
-        gdriveLink:
-          updateLink.trim() || undefined,
-        urgency: updateFeatured
-          ? 'penting'
-          : 'normal',
-        isPinned: updateFeatured,
-        signedBy: '',
-      };
+      setElementaryMediaUploading(
+        true
+      );
 
-      onUpdateCircular(updatedItem);
-    } else {
-      const newItem: CircularLetter = {
-        id: `elementary-update-${Date.now()}`,
-        tipeKonten: 'elementary_update',
-        nomorSurat: '',
-        title: updateTitle.trim(),
-        category: 'Elementary Updates',
-        gradeLevels: updateGrades,
-        publishDate: updatePublishDate,
-        effectiveDate: '',
-        urgency: updateFeatured
-          ? 'penting'
-          : 'normal',
-        summary: updateContent.trim(),
-        content: updateContent.trim(),
-        gdriveLink:
-          updateLink.trim() || undefined,
-        signedBy: '',
-        tembusan: [],
-        isPinned: updateFeatured,
-        viewCount: 0,
-      };
+      try {
+        const uploadedMedia =
+          await Promise.all(
+            updateMediaItems.map(
+              uploadElementaryMedia
+            )
+          );
 
-      onAddCircular(newItem);
-    }
+        if (editingElementaryUpdate) {
+          const updatedItem:
+            CircularLetter = {
+            ...editingElementaryUpdate,
+            tipeKonten:
+              'elementary_update',
+            nomorSurat: '',
+            title:
+              updateTitle.trim(),
+            category:
+              'Elementary Updates',
+            gradeLevels:
+              updateGrades,
+            publishDate:
+              updatePublishDate,
+            effectiveDate: '',
+            summary:
+              updateContent.trim(),
+            content:
+              updateContent.trim(),
+            mediaItems:
+              uploadedMedia,
+            gdriveLink:
+              updateLink.trim() ||
+              undefined,
+            urgency:
+              updateFeatured
+                ? 'penting'
+                : 'normal',
+            isPinned:
+              updateFeatured,
+            signedBy: '',
+          };
 
-    setShowElementaryUpdateModal(false);
-    clearElementaryUpdateDraft();
-    resetElementaryUpdateForm();
-  };
+          onUpdateCircular(
+            updatedItem
+          );
+        } else {
+          const newItem:
+            CircularLetter = {
+            id: `elementary-update-${Date.now()}`,
+            tipeKonten:
+              'elementary_update',
+            nomorSurat: '',
+            title:
+              updateTitle.trim(),
+            category:
+              'Elementary Updates',
+            gradeLevels:
+              updateGrades,
+            publishDate:
+              updatePublishDate,
+            effectiveDate: '',
+            urgency:
+              updateFeatured
+                ? 'penting'
+                : 'normal',
+            summary:
+              updateContent.trim(),
+            content:
+              updateContent.trim(),
+            mediaItems:
+              uploadedMedia,
+            gdriveLink:
+              updateLink.trim() ||
+              undefined,
+            signedBy: '',
+            tembusan: [],
+            isPinned:
+              updateFeatured,
+            viewCount: 0,
+          };
+
+          onAddCircular(newItem);
+        }
+
+        setShowElementaryUpdateModal(
+          false
+        );
+
+        clearElementaryUpdateDraft();
+
+        await clearElementaryMediaDraftFiles();
+
+        resetElementaryUpdateForm();
+      } catch (error: any) {
+        console.error(
+          'Gagal upload media Elementary Updates:',
+          error
+        );
+
+        alert(
+          getElementaryMediaUploadError(
+            error
+          )
+        );
+      } finally {
+        setElementaryMediaUploading(
+          false
+        );
+      }
+    };
 
   // Reminder Form & Management State
   const [reminderList, setReminderList] = useState<ScheduledReminder[]>(reminders);
@@ -1609,6 +2328,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mt-1.5 whitespace-pre-line line-clamp-4">
                         {update.content || update.summary}
                       </p>
+
+                      {update.mediaItems &&
+                        update.mediaItems.length > 0 && (
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <Images className="w-3.5 h-3.5 text-emerald-700" />
+                            <span className="text-[11px] font-semibold text-slate-500">
+                              {update.mediaItems.length}{' '}
+                              foto/video
+                            </span>
+                          </div>
+                        )}
 
                       {update.gdriveLink && (
                         <a
@@ -2371,6 +3101,126 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Foto / Video Kegiatan
+                  <span className="font-normal text-slate-400">
+                    {' '}(Opsional)
+                  </span>
+                </label>
+
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 space-y-3">
+                  {updateMediaItems.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {updateMediaItems.map(
+                        (media) => (
+                          <div
+                            key={media.id}
+                            className="relative rounded-xl overflow-hidden border border-slate-200 bg-white"
+                          >
+                            {media.type === 'video' ? (
+                              <video
+                                src={
+                                  media.previewUrl
+                                }
+                                controls
+                                preload="metadata"
+                                playsInline
+                                className="w-full h-48 object-contain bg-black"
+                              />
+                            ) : (
+                              <img
+                                src={
+                                  media.previewUrl
+                                }
+                                alt={
+                                  media.name
+                                }
+                                className="w-full h-48 object-cover"
+                              />
+                            )}
+
+                            <div className="p-2.5 flex items-center justify-between gap-2">
+                              <div className="min-w-0 flex items-center gap-2">
+                                {media.type === 'video' ? (
+                                  <Film className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                                ) : (
+                                  <ImageIcon className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                                )}
+
+                                <span className="text-[11px] text-slate-600 truncate">
+                                  {media.name}
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeElementaryMedia(
+                                    media.id
+                                  )
+                                }
+                                className="shrink-0 p-1.5 rounded-lg text-red-600 hover:bg-red-50"
+                                title="Hapus media"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+
+                  {updateMediaItems.length < 6 && (
+                    <label className="flex flex-col items-center justify-center gap-2 py-6 cursor-pointer text-center">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                        <Images className="w-5 h-5" />
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">
+                          Upload foto atau video
+                        </p>
+
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Maksimal 6 media • Foto 10 MB • Video 50 MB
+                        </p>
+
+                        <p className="text-[11px] text-slate-500">
+                          JPG, PNG, WEBP, MP4, WEBM
+                        </p>
+                      </div>
+
+                      <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-emerald-800">
+                        <Upload className="w-3.5 h-3.5" />
+                        Pilih Foto / Video
+                      </span>
+
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                        onChange={
+                          handleElementaryMediaChange
+                        }
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+
+                  {updateMediaItems.length >= 6 && (
+                    <p className="text-center text-[11px] font-semibold text-slate-500 py-2">
+                      Maksimal 6 media sudah dipilih.
+                    </p>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Media tersimpan sebagai draft browser sampai update dipublikasikan, jadi tidak hilang saat pindah tab.
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Kelas / Fase Terkait
                 </label>
@@ -2473,11 +3323,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-extrabold shadow-md"
+                  disabled={
+                    elementaryMediaUploading
+                  }
+                  className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-xs font-extrabold shadow-md inline-flex items-center gap-2"
                 >
-                  {editingElementaryUpdate
-                    ? 'Simpan Perubahan'
-                    : 'Publikasikan Update'}
+                  {elementaryMediaUploading && (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  )}
+
+                  {elementaryMediaUploading
+                    ? 'Mengunggah Media...'
+                    : editingElementaryUpdate
+                      ? 'Simpan Perubahan'
+                      : 'Publikasikan Update'}
                 </button>
               </div>
             </form>
