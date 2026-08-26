@@ -32,7 +32,11 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {/* Lazuardi Crest Emblem */}
             <div className="w-9 h-9 rounded-xl bg-blue-900 text-white flex items-center justify-center font-black text-sm shadow-xs border border-amber-400 group-hover:scale-105 transition-transform">
-              LZ
+              <img
+  src="/favicon.png"
+  alt="Lazuardi"
+  className="w-12 h-12 object-contain"
+/>
             </div>
             <div>
               <h1 className="font-extrabold text-base sm:text-lg text-blue-950 tracking-tight leading-none">
