@@ -12,8 +12,12 @@ interface AdminPanelProps {
   alerts: EmergencyAlert[];
   events: SchoolEvent[];
   reminders: ScheduledReminder[];
-  onAddCircular: (newCirc: CircularLetter) => void;
-  onUpdateCircular: (updatedCirc: CircularLetter) => void;
+  onAddCircular: (
+    newCirc: CircularLetter
+  ) => Promise<boolean>;
+  onUpdateCircular: (
+    updatedCirc: CircularLetter
+  ) => Promise<boolean>;
   onDeleteCircular: (id: string) => void;
   onUpdateAlerts: (updatedAlerts: EmergencyAlert[]) => void;
   onUpdateReminders: (updatedReminders: ScheduledReminder[]) => void;
@@ -2035,12 +2039,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       );
 
       try {
+        // Media yang sudah di-upload saat dipilih hanya
+        // dikumpulkan URL-nya di sini, tidak di-upload ulang.
         const uploadedMedia =
           await Promise.all(
             updateMediaItems.map(
               uploadElementaryMedia
             )
           );
+
+        let saved = false;
 
         if (editingElementaryUpdate) {
           const updatedItem:
@@ -2076,9 +2084,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             signedBy: '',
           };
 
-          onUpdateCircular(
-            updatedItem
-          );
+          saved =
+            await onUpdateCircular(
+              updatedItem
+            );
         } else {
           const newItem:
             CircularLetter = {
@@ -2115,9 +2124,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             viewCount: 0,
           };
 
-          onAddCircular(newItem);
+          saved =
+            await onAddCircular(
+              newItem
+            );
         }
 
+        // KRITIS:
+        // Kalau Supabase gagal, JANGAN tutup form
+        // dan JANGAN hapus draft/media.
+        if (!saved) {
+          persistElementaryUpdateDraftNow(
+            updateMediaItems
+          );
+
+          return;
+        }
+
+        // Baru setelah database benar-benar berhasil:
+        // tutup dan bersihkan draft lokal.
         setShowElementaryUpdateModal(
           false
         );
@@ -2129,8 +2154,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         resetElementaryUpdateForm();
       } catch (error: any) {
         console.error(
-          'Gagal upload media Elementary Updates:',
+          'Gagal menyimpan Elementary Updates:',
           error
+        );
+
+        // Pertahankan draft supaya media dan isian tidak hilang.
+        persistElementaryUpdateDraftNow(
+          updateMediaItems
         );
 
         alert(
@@ -2389,8 +2419,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full md:w-auto">
           <button
             onClick={() => {
-              clearElementaryUpdateDraft();
-              resetElementaryUpdateForm();
+              // Jangan hapus draft yang sudah ada.
+              // Jika user kembali ke form, lanjutkan draft sebelumnya.
               setActiveTab('updates');
               setShowElementaryUpdateModal(true);
             }}
@@ -2496,8 +2526,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               onClick={() => {
-                clearElementaryUpdateDraft();
-                resetElementaryUpdateForm();
+                // Resume draft jika sebelumnya sudah mulai mengisi.
                 setShowElementaryUpdateModal(true);
               }}
               className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-colors shrink-0"
@@ -3290,6 +3319,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 headline kegiatan, project, prestasi siswa, dan cerita
                 terbaru dari Elementary.
               </div>
+
+              {updateMediaItems.length > 0 && (
+                <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-xs text-blue-950 flex items-start gap-2">
+                  <span className="font-extrabold">Draft aman:</span>
+                  <span>
+                    {updateMediaItems.length} media sudah tersimpan. Draft tidak akan dihapus hanya karena berpindah tab.
+                  </span>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
