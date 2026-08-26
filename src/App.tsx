@@ -63,6 +63,10 @@ export default function App() {
 
     imageUrl: row.image_url ?? undefined,
 
+    mediaItems: Array.isArray(row.media_items)
+      ? row.media_items
+      : [],
+
     actionRequired: row.action_required ?? undefined,
 
     attachmentName: row.attachment_name ?? undefined,
@@ -673,6 +677,9 @@ export default function App() {
     image_url:
       circular.imageUrl || null,
 
+    media_items:
+      circular.mediaItems ?? [],
+
     action_required:
       circular.actionRequired || null,
 
@@ -1100,6 +1107,19 @@ export default function App() {
     (circ) => circ.tipeKonten === 'info'
   );
 
+  // Info Terkini yang di-pin:
+  // tampilkan yang paling baru sebagai pengumuman kecil di bawah header.
+  const pinnedInfoCirculars = infoCirculars
+    .filter((circ) => circ.isPinned)
+    .sort((a, b) =>
+      (b.publishDate || '').localeCompare(
+        a.publishDate || ''
+      )
+    );
+
+  const headerPinnedInfo =
+    pinnedInfoCirculars[0] ?? null;
+
   const elementaryUpdateCirculars = circulars.filter(
     (circ) => circ.tipeKonten === 'elementary_update'
   );
@@ -1159,6 +1179,39 @@ export default function App() {
         }}
         isEmbedded={isEmbedded}
       />
+
+      {/* PINNED INFO TERKINI — HEADER STRIP */}
+      {headerPinnedInfo &&
+        activeView !== 'admin' && (
+          <div className="w-full bg-amber-50 border-b border-amber-200">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveView('letters');
+                  setParentContentView('info');
+                  handleOpenDetail(
+                    headerPinnedInfo
+                  );
+                }}
+                className="w-full flex items-center gap-2 text-left group"
+              >
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-400 text-slate-950 px-2 py-0.5 text-[10px] sm:text-xs font-extrabold">
+                  <Pin className="w-3 h-3" />
+                  Info Penting
+                </span>
+
+                <span className="min-w-0 flex-1 truncate text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-blue-950">
+                  {headerPinnedInfo.title}
+                </span>
+
+                <span className="shrink-0 text-[10px] sm:text-xs font-bold text-blue-900">
+                  Lihat →
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
 
       {/* MAIN */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -1449,6 +1502,68 @@ export default function App() {
                           className="group bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden hover:shadow-md transition-shadow"
                         >
                           <div className="h-2 bg-emerald-600" />
+
+                          {update.mediaItems &&
+                            update.mediaItems.length > 0 && (
+                              <div
+                                className={`grid gap-1 bg-slate-100 ${
+                                  update.mediaItems.length === 1
+                                    ? 'grid-cols-1'
+                                    : 'grid-cols-2'
+                                }`}
+                              >
+                                {update.mediaItems
+                                  .slice(0, 4)
+                                  .map((media, index) => (
+                                    <div
+                                      key={`${media.url}-${index}`}
+                                      className={`relative bg-slate-100 overflow-hidden ${
+                                        update.mediaItems!.length === 3 &&
+                                        index === 0
+                                          ? 'col-span-2'
+                                          : ''
+                                      }`}
+                                    >
+                                      {media.type === 'video' ? (
+                                        <video
+                                          src={media.url}
+                                          controls
+                                          preload="metadata"
+                                          playsInline
+                                          className="w-full h-full min-h-[220px] max-h-[460px] object-contain bg-black"
+                                        />
+                                      ) : (
+                                        <a
+                                          href={media.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="block"
+                                        >
+                                          <img
+                                            src={media.url}
+                                            alt={
+                                              media.name ||
+                                              `Foto ${update.title}`
+                                            }
+                                            loading="lazy"
+                                            className="w-full h-full min-h-[220px] max-h-[460px] object-cover"
+                                          />
+                                        </a>
+                                      )}
+
+                                      {index === 3 &&
+                                        update.mediaItems!.length > 4 && (
+                                          <div className="absolute inset-0 bg-slate-950/65 text-white flex items-center justify-center text-lg font-extrabold pointer-events-none">
+                                            +
+                                            {update.mediaItems!.length -
+                                              4}{' '}
+                                            media
+                                          </div>
+                                        )}
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
 
                           <div className="p-5 sm:p-6">
                             <div className="flex flex-wrap items-center gap-2 mb-3">
