@@ -25,7 +25,7 @@ import {
   INITIAL_EVENTS,
 } from './data/initialData';
 
-import { BookOpen, Lock, X, FileText, Megaphone, Pin, CalendarDays, ExternalLink, Newspaper, Sun, Moon } from 'lucide-react';
+import { BookOpen, Lock, X, FileText, Megaphone, Pin, CalendarDays, ExternalLink, Newspaper, Sun, Moon, Camera } from 'lucide-react';
 
 
 const AutoLinkText: React.FC<{
@@ -1713,6 +1713,46 @@ export default function App() {
         {/* PORTAL INFORMASI ORANG TUA */}
         {activeView === 'letters' && (
           <div className="space-y-5">
+            {/* ELEMENTARY MOMENTS */}
+            <section className="relative overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-xs">
+              <div className="absolute inset-y-0 left-0 w-1.5 bg-blue-700" />
+
+              <div className="p-4 sm:p-5 pl-6 sm:pl-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+                    <Camera className="w-5 h-5" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="font-extrabold text-base sm:text-lg text-slate-950">
+                        Elementary Moments
+                      </h2>
+
+                      <span className="rounded-full bg-amber-100 border border-amber-200 text-amber-900 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">
+                        Dokumentasi SD
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                      Lihat dokumentasi kegiatan, project, field trip, performance, dan berbagai momen seru siswa SD Lazuardi.
+                    </p>
+                  </div>
+                </div>
+
+                <a
+                  href="https://linktr.ee/elementarymoments"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-950 hover:bg-blue-900 text-white px-4 py-2.5 text-xs sm:text-sm font-extrabold transition-colors"
+                >
+                  <Camera className="w-4 h-4" />
+                  Lihat Elementary Moments
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </section>
+
             {/* Sub menu: Surat Edaran / Info Terkini */}
             <div className="bg-white border border-slate-200 rounded-2xl p-1.5 shadow-xs flex gap-1.5 overflow-x-auto">
               <button
