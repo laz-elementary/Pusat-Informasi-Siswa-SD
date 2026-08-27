@@ -849,7 +849,7 @@ export default function App() {
   // Sub-menu portal orang tua: surat resmi vs info singkat
   const [parentContentView, setParentContentView] = useState<
     'surat' | 'info' | 'elementary_update'
-  >('surat');
+  >('info');
 
   // =========================================================
   // CEK SESSION ADMIN
@@ -1753,30 +1753,8 @@ export default function App() {
               </div>
             </section>
 
-            {/* Sub menu: Surat Edaran / Info Terkini */}
+            {/* Sub menu: Info Terkini / Elementary Updates / Surat Edaran */}
             <div className="bg-white border border-slate-200 rounded-2xl p-1.5 shadow-xs flex gap-1.5 overflow-x-auto">
-              <button
-                type="button"
-                onClick={() => setParentContentView('surat')}
-                className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                  parentContentView === 'surat'
-                    ? 'bg-blue-950 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-                <span>Surat Edaran</span>
-                <span
-                  className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-                    parentContentView === 'surat'
-                      ? 'bg-white/15 text-white'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  {suratCirculars.length}
-                </span>
-              </button>
-
               <button
                 type="button"
                 onClick={() => setParentContentView('info')}
@@ -1818,6 +1796,28 @@ export default function App() {
                   }`}
                 >
                   {elementaryUpdateCirculars.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setParentContentView('surat')}
+                className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                  parentContentView === 'surat'
+                    ? 'bg-blue-950 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>Surat Edaran</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                    parentContentView === 'surat'
+                      ? 'bg-white/15 text-white'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {suratCirculars.length}
                 </span>
               </button>
             </div>
