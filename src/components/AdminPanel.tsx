@@ -1479,7 +1479,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   ) => {
     e.preventDefault();
 
-    if (!infoTitle.trim() || !infoContent.trim()) {
+    if (
+      !infoTitle.trim() ||
+      !infoContent.trim()
+    ) {
       return;
     }
 
@@ -1491,22 +1494,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       if (infoImageFile) {
         finalImageUrl =
-          await uploadInfoImage(infoImageFile);
+          await uploadInfoImage(
+            infoImageFile
+          );
       }
 
+      let saved = false;
+
       if (editingInfo) {
-        const updatedInfo: CircularLetter = {
+        const updatedInfo:
+          CircularLetter = {
           ...editingInfo,
           tipeKonten: 'info',
           nomorSurat: '',
-          title: infoTitle.trim(),
-          category: 'Info Terkini',
-          gradeLevels: infoGrades,
-          publishDate: infoPublishDate,
+          title:
+            infoTitle.trim(),
+          category:
+            'Info Terkini',
+          gradeLevels:
+            infoGrades,
+          publishDate:
+            infoPublishDate,
           effectiveDate: '',
-          summary: infoContent.trim(),
-          content: infoContent.trim(),
-          imageUrl: finalImageUrl,
+          summary:
+            infoContent.trim(),
+          content:
+            infoContent.trim(),
+          imageUrl:
+            finalImageUrl,
 
           mediaItems:
             infoVideoUrl
@@ -1524,31 +1539,49 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               : [],
 
           gdriveLink:
-            infoLink.trim() || undefined,
-          urgency: infoPinned
-            ? 'penting'
-            : 'normal',
-          isPinned: infoPinned,
+            infoLink.trim() ||
+            undefined,
+
+          urgency:
+            infoPinned
+              ? 'penting'
+              : 'normal',
+
+          isPinned:
+            infoPinned,
+
           signedBy: '',
         };
 
-        onUpdateCircular(updatedInfo);
+        saved =
+          await onUpdateCircular(
+            updatedInfo
+          );
       } else {
-        const newInfo: CircularLetter = {
+        const newInfo:
+          CircularLetter = {
           id: `info-${Date.now()}`,
           tipeKonten: 'info',
           nomorSurat: '',
-          title: infoTitle.trim(),
-          category: 'Info Terkini',
-          gradeLevels: infoGrades,
-          publishDate: infoPublishDate,
+          title:
+            infoTitle.trim(),
+          category:
+            'Info Terkini',
+          gradeLevels:
+            infoGrades,
+          publishDate:
+            infoPublishDate,
           effectiveDate: '',
-          urgency: infoPinned
-            ? 'penting'
-            : 'normal',
-          summary: infoContent.trim(),
-          content: infoContent.trim(),
-          imageUrl: finalImageUrl,
+          urgency:
+            infoPinned
+              ? 'penting'
+              : 'normal',
+          summary:
+            infoContent.trim(),
+          content:
+            infoContent.trim(),
+          imageUrl:
+            finalImageUrl,
 
           mediaItems:
             infoVideoUrl
@@ -1566,20 +1599,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               : [],
 
           gdriveLink:
-            infoLink.trim() || undefined,
+            infoLink.trim() ||
+            undefined,
+
           signedBy: '',
           tembusan: [],
-          isPinned: infoPinned,
+          isPinned:
+            infoPinned,
           viewCount: 0,
         };
 
-        onAddCircular(newInfo);
+        saved =
+          await onAddCircular(
+            newInfo
+          );
       }
 
-      setInfoVideoIsDraftUpload(false);
-      setInfoVideoStoragePath('');
+      // Kalau Supabase gagal simpan,
+      // jangan tutup form dan jangan buang media.
+      if (!saved) {
+        return;
+      }
+
+      // Video sekarang resmi menjadi bagian posting.
+      setInfoVideoIsDraftUpload(
+        false
+      );
+
+      setInfoVideoStoragePath(
+        ''
+      );
 
       setShowInfoModal(false);
+
       clearInfoDraft();
 
       await clearInfoDraftFileFromBrowser();
@@ -1587,7 +1639,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       resetInfoForm();
     } catch (error: any) {
       console.error(
-        'Gagal mengunggah flyer Info Terkini:',
+        'Gagal menyimpan Info Terkini:',
         error
       );
 
@@ -3015,6 +3067,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             {peruntukanText}
                           </span>
                         )}
+
+                        {info.imageUrl && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                            <ImageIcon className="w-3 h-3" />
+                            Flyer
+                          </span>
+                        )}
+
+                        {info.mediaItems?.some(
+                          (media) =>
+                            media.type === 'video'
+                        ) && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                            <Film className="w-3 h-3" />
+                            Video
+                          </span>
+                        )}
                       </div>
 
                       <h4 className="font-extrabold text-sm sm:text-base text-slate-950">
@@ -3300,6 +3369,88 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mt-1.5 whitespace-pre-line">
                         {info.content || info.summary}
                       </p>
+
+                      {(info.imageUrl ||
+                        info.mediaItems?.some(
+                          (media) =>
+                            media.type === 'video'
+                        )) && (
+                        <div
+                          className={`mt-4 grid gap-3 ${
+                            info.imageUrl &&
+                            info.mediaItems?.some(
+                              (media) =>
+                                media.type === 'video'
+                            )
+                              ? 'grid-cols-1 lg:grid-cols-2'
+                              : 'grid-cols-1'
+                          }`}
+                        >
+                          {info.imageUrl && (
+                            <div className="rounded-xl overflow-hidden border border-slate-200 bg-white">
+                              <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
+                                <ImageIcon className="w-3.5 h-3.5 text-amber-700" />
+                                <span className="text-[11px] font-bold text-slate-600">
+                                  Flyer / Gambar
+                                </span>
+                              </div>
+
+                              <a
+                                href={info.imageUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block bg-slate-50"
+                              >
+                                <img
+                                  src={info.imageUrl}
+                                  alt={`Flyer ${info.title}`}
+                                  loading="lazy"
+                                  className="w-full max-h-[360px] object-contain"
+                                />
+                              </a>
+                            </div>
+                          )}
+
+                          {info.mediaItems
+                            ?.filter(
+                              (media) =>
+                                media.type ===
+                                'video'
+                            )
+                            .slice(0, 1)
+                            .map(
+                              (
+                                media,
+                                index
+                              ) => (
+                                <div
+                                  key={`${media.url}-${index}`}
+                                  className="rounded-xl overflow-hidden border border-slate-200 bg-white"
+                                >
+                                  <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
+                                    <Film className="w-3.5 h-3.5 text-blue-700" />
+
+                                    <span className="text-[11px] font-bold text-slate-600">
+                                      Video Informasi
+                                    </span>
+
+                                    <span className="ml-auto inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                                      Tersimpan
+                                    </span>
+                                  </div>
+
+                                  <video
+                                    src={media.url}
+                                    controls
+                                    playsInline
+                                    preload="metadata"
+                                    className="w-full max-h-[360px] object-contain bg-black"
+                                  />
+                                </div>
+                              )
+                            )}
+                        </div>
+                      )}
 
                       {info.gdriveLink && (
                         <a
