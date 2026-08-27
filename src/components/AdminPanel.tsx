@@ -70,6 +70,11 @@ interface InfoDraftSnapshot {
   link: string;
   isPinned: boolean;
   imageUrl: string;
+
+  videoUrl?: string;
+  videoName?: string;
+  videoStoragePath?: string;
+  videoIsDraftUpload?: boolean;
 }
 
 const readInfoDraft = (): InfoDraftSnapshot | null => {
@@ -840,6 +845,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [infoUploading, setInfoUploading] = useState(false);
 
+  const [infoVideoUrl, setInfoVideoUrl] =
+    useState(
+      () =>
+        restoredInfoDraft?.videoUrl ??
+        ''
+    );
+
+  const [infoVideoName, setInfoVideoName] =
+    useState(
+      () =>
+        restoredInfoDraft?.videoName ??
+        ''
+    );
+
+  const [
+    infoVideoStoragePath,
+    setInfoVideoStoragePath,
+  ] = useState(
+    () =>
+      restoredInfoDraft?.videoStoragePath ??
+      ''
+  );
+
+  const [
+    infoVideoIsDraftUpload,
+    setInfoVideoIsDraftUpload,
+  ] = useState(
+    () =>
+      restoredInfoDraft?.videoIsDraftUpload ??
+      false
+  );
+
+  const [
+    infoVideoUploading,
+    setInfoVideoUploading,
+  ] = useState(false);
+
   const [
     infoDraftImageRestored,
     setInfoDraftImageRestored,
@@ -930,6 +972,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       link: infoLink,
       isPinned: infoPinned,
       imageUrl: infoImageUrl,
+
+      videoUrl:
+        infoVideoUrl || undefined,
+      videoName:
+        infoVideoName || undefined,
+      videoStoragePath:
+        infoVideoStoragePath ||
+        undefined,
+      videoIsDraftUpload:
+        infoVideoIsDraftUpload,
     };
 
     window.localStorage.setItem(
@@ -947,6 +999,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     infoLink,
     infoPinned,
     infoImageUrl,
+    infoVideoUrl,
+    infoVideoName,
+    infoVideoStoragePath,
+    infoVideoIsDraftUpload,
   ]);
 
   const clearInfoDraft = () => {
@@ -976,6 +1032,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setInfoImageFile(null);
     setInfoImagePreview('');
     setInfoUploading(false);
+
+    setInfoVideoUrl('');
+    setInfoVideoName('');
+    setInfoVideoStoragePath('');
+    setInfoVideoIsDraftUpload(false);
+    setInfoVideoUploading(false);
   };
 
   const closeInfoModal = () => {
@@ -1159,6 +1221,200 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return data.publicUrl;
   };
 
+  const uploadInfoVideoImmediately =
+    async (
+      file: File
+    ): Promise<{
+      url: string;
+      storagePath: string;
+    }> => {
+      const extension =
+        file.name
+          .split('.')
+          .pop()
+          ?.toLowerCase() ||
+        'mp4';
+
+      const safeName =
+        file.name
+          .replace(/\.[^/.]+$/, '')
+          .toLowerCase()
+          .replace(
+            /[^a-z0-9]+/g,
+            '-'
+          )
+          .replace(
+            /^-+|-+$/g,
+            ''
+          )
+          .slice(0, 60) ||
+        'video';
+
+      const storagePath =
+        `info-terkini/videos/${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}-${safeName}.${extension}`;
+
+      const { error } =
+        await supabase.storage
+          .from('info-images')
+          .upload(
+            storagePath,
+            file,
+            {
+              cacheControl:
+                '3600',
+              upsert: false,
+              contentType:
+                file.type,
+            }
+          );
+
+      if (error) {
+        throw error;
+      }
+
+      const { data } =
+        supabase.storage
+          .from('info-images')
+          .getPublicUrl(
+            storagePath
+          );
+
+      if (!data.publicUrl) {
+        throw new Error(
+          'URL video tidak berhasil dibuat.'
+        );
+      }
+
+      return {
+        url: data.publicUrl,
+        storagePath,
+      };
+    };
+
+  const deleteInfoDraftVideo =
+    async (
+      storagePath?: string
+    ) => {
+      if (!storagePath) return;
+
+      const { error } =
+        await supabase.storage
+          .from('info-images')
+          .remove([
+            storagePath,
+          ]);
+
+      if (error) {
+        console.warn(
+          'Gagal membersihkan video draft Info Terkini:',
+          error
+        );
+      }
+    };
+
+  const handleInfoVideoChange =
+    async (
+      e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const file =
+        e.target.files?.[0];
+
+      e.target.value = '';
+
+      if (!file) return;
+
+      const allowedVideoTypes = [
+        'video/mp4',
+        'video/webm',
+      ];
+
+      if (
+        !allowedVideoTypes.includes(
+          file.type
+        )
+      ) {
+        alert(
+          'Format video harus MP4 atau WEBM.'
+        );
+        return;
+      }
+
+      const maxSize =
+        50 * 1024 * 1024;
+
+      if (file.size > maxSize) {
+        alert(
+          'Ukuran video maksimal 50 MB.'
+        );
+        return;
+      }
+
+      setInfoVideoUploading(true);
+
+      try {
+        if (
+          infoVideoIsDraftUpload &&
+          infoVideoStoragePath
+        ) {
+          await deleteInfoDraftVideo(
+            infoVideoStoragePath
+          );
+        }
+
+        const uploaded =
+          await uploadInfoVideoImmediately(
+            file
+          );
+
+        setInfoVideoUrl(
+          uploaded.url
+        );
+
+        setInfoVideoName(
+          file.name
+        );
+
+        setInfoVideoStoragePath(
+          uploaded.storagePath
+        );
+
+        setInfoVideoIsDraftUpload(
+          true
+        );
+      } catch (error: any) {
+        console.error(
+          'Gagal upload video Info Terkini:',
+          error
+        );
+
+        alert(
+          getInfoImageUploadErrorMessage(
+            error
+          )
+        );
+      } finally {
+        setInfoVideoUploading(false);
+      }
+    };
+
+  const removeInfoVideo = () => {
+    if (
+      infoVideoIsDraftUpload &&
+      infoVideoStoragePath
+    ) {
+      void deleteInfoDraftVideo(
+        infoVideoStoragePath
+      );
+    }
+
+    setInfoVideoUrl('');
+    setInfoVideoName('');
+    setInfoVideoStoragePath('');
+    setInfoVideoIsDraftUpload(false);
+  };
+
   const toggleInfoGradeSelection = (grade: string) => {
     if (grade === 'Semua Kelas') {
       setInfoGrades(['Semua Kelas']);
@@ -1197,6 +1453,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setInfoImageFile(null);
     setInfoImagePreview(info.imageUrl || '');
 
+    const existingVideo =
+      info.mediaItems?.find(
+        (media) =>
+          media.type === 'video'
+      );
+
+    setInfoVideoUrl(
+      existingVideo?.url || ''
+    );
+
+    setInfoVideoName(
+      existingVideo?.name ||
+      ''
+    );
+
+    setInfoVideoStoragePath('');
+    setInfoVideoIsDraftUpload(false);
+
     setShowInfoModal(true);
   };
 
@@ -1233,6 +1507,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           summary: infoContent.trim(),
           content: infoContent.trim(),
           imageUrl: finalImageUrl,
+
+          mediaItems:
+            infoVideoUrl
+              ? [
+                  {
+                    url:
+                      infoVideoUrl,
+                    type:
+                      'video',
+                    name:
+                      infoVideoName ||
+                      'Video Info Terkini',
+                  },
+                ]
+              : [],
+
           gdriveLink:
             infoLink.trim() || undefined,
           urgency: infoPinned
@@ -1259,6 +1549,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           summary: infoContent.trim(),
           content: infoContent.trim(),
           imageUrl: finalImageUrl,
+
+          mediaItems:
+            infoVideoUrl
+              ? [
+                  {
+                    url:
+                      infoVideoUrl,
+                    type:
+                      'video',
+                    name:
+                      infoVideoName ||
+                      'Video Info Terkini',
+                  },
+                ]
+              : [],
+
           gdriveLink:
             infoLink.trim() || undefined,
           signedBy: '',
@@ -1269,6 +1575,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         onAddCircular(newInfo);
       }
+
+      setInfoVideoIsDraftUpload(false);
+      setInfoVideoStoragePath('');
 
       setShowInfoModal(false);
       clearInfoDraft();
@@ -4156,6 +4465,131 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Video Informasi
+                  <span className="font-normal text-slate-400">
+                    {' '}(Opsional)
+                  </span>
+                </label>
+
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                  {infoVideoUrl ? (
+                    <div className="space-y-3">
+                      <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-black">
+                        <video
+                          src={infoVideoUrl}
+                          controls
+                          playsInline
+                          preload="metadata"
+                          className="w-full max-h-[420px] object-contain bg-black"
+                        />
+
+                        <div className="absolute top-2 left-2 rounded-md bg-emerald-700/90 text-white px-2 py-1 text-[10px] font-bold">
+                          Tersimpan
+                        </div>
+                      </div>
+
+                      {infoVideoName && (
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {infoVideoName}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-900 hover:bg-blue-950 text-white text-xs font-bold ${
+                          infoVideoUploading
+                            ? 'opacity-60 cursor-not-allowed'
+                            : 'cursor-pointer'
+                        }`}>
+                          {infoVideoUploading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Film className="w-3.5 h-3.5" />
+                          )}
+
+                          Ganti Video
+
+                          <input
+                            type="file"
+                            disabled={
+                              infoVideoUploading
+                            }
+                            accept="video/mp4,video/webm"
+                            onChange={
+                              handleInfoVideoChange
+                            }
+                            className="hidden"
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={
+                            removeInfoVideo
+                          }
+                          disabled={
+                            infoVideoUploading
+                          }
+                          className="px-3 py-2 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:opacity-50 text-xs font-bold"
+                        >
+                          Hapus Video
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className={`flex flex-col items-center justify-center gap-2 py-6 text-center ${
+                      infoVideoUploading
+                        ? 'cursor-not-allowed opacity-60'
+                        : 'cursor-pointer'
+                    }`}>
+                      <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-800 flex items-center justify-center">
+                        {infoVideoUploading ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Film className="w-5 h-5" />
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">
+                          {infoVideoUploading
+                            ? 'Mengunggah video...'
+                            : 'Upload video informasi'}
+                        </p>
+
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          MP4 atau WEBM • maksimal 50 MB
+                        </p>
+                      </div>
+
+                      {!infoVideoUploading && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-blue-900">
+                          <Upload className="w-3.5 h-3.5" />
+                          Pilih Video
+                        </span>
+                      )}
+
+                      <input
+                        type="file"
+                        disabled={
+                          infoVideoUploading
+                        }
+                        accept="video/mp4,video/webm"
+                        onChange={
+                          handleInfoVideoChange
+                        }
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Video langsung disimpan ke Supabase saat dipilih, jadi tidak hilang hanya karena berpindah tab.
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Sasaran Kelas / Fase *
                 </label>
@@ -4238,7 +4672,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 <button
                   type="submit"
-                  disabled={infoUploading}
+                  disabled={
+                    infoUploading ||
+                    infoVideoUploading
+                  }
                   className="px-5 py-2 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-xs font-extrabold shadow-md inline-flex items-center gap-2"
                 >
                   {infoUploading && (
@@ -4247,9 +4684,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                   {infoUploading
                     ? 'Mengunggah Flyer...'
-                    : editingInfo
-                      ? 'Simpan Perubahan'
-                      : 'Publikasikan Info'}
+                    : infoVideoUploading
+                      ? 'Mengunggah Video...'
+                      : editingInfo
+                        ? 'Simpan Perubahan'
+                        : 'Publikasikan Info'}
                 </button>
               </div>
             </form>
