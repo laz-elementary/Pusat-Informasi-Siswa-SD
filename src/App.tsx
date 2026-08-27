@@ -329,6 +329,28 @@ export default function App() {
 
     imageUrl: row.image_url ?? undefined,
 
+    videoUrl:
+      row.video_url ??
+      (
+        Array.isArray(row.media_items)
+          ? row.media_items.find(
+              (media: any) =>
+                media?.type === 'video'
+            )?.url
+          : undefined
+      ),
+
+    videoName:
+      row.video_name ??
+      (
+        Array.isArray(row.media_items)
+          ? row.media_items.find(
+              (media: any) =>
+                media?.type === 'video'
+            )?.name
+          : undefined
+      ),
+
     mediaItems: Array.isArray(row.media_items)
       ? row.media_items
       : [],
@@ -1081,6 +1103,22 @@ export default function App() {
 
     image_url:
       circular.imageUrl || null,
+
+    video_url:
+      circular.videoUrl ||
+      circular.mediaItems?.find(
+        (media) =>
+          media.type === 'video'
+      )?.url ||
+      null,
+
+    video_name:
+      circular.videoName ||
+      circular.mediaItems?.find(
+        (media) =>
+          media.type === 'video'
+      )?.name ||
+      null,
 
     media_items:
       circular.mediaItems ?? [],
@@ -1838,6 +1876,33 @@ export default function App() {
                               />
                             </a>
                           )}
+
+                          {(() => {
+                            const videoUrl =
+                              info.videoUrl ||
+                              info.mediaItems?.find(
+                                (media) =>
+                                  media.type === 'video'
+                              )?.url;
+
+                            if (!videoUrl) {
+                              return null;
+                            }
+
+                            return (
+                              <div className="bg-black border-b border-slate-200">
+                                <video
+                                  src={videoUrl}
+                                  controls
+                                  playsInline
+                                  preload="metadata"
+                                  className="w-full max-h-[540px] object-contain bg-black"
+                                >
+                                  Browser tidak mendukung pemutaran video.
+                                </video>
+                              </div>
+                            );
+                          })()}
 
                           <div className="p-5">
                             <div className="flex items-start justify-between gap-4">
