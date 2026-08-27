@@ -36,6 +36,8 @@ export interface CircularLetter {
   title: string;
     imageUrl?: string;
   mediaItems?: CircularMediaItem[];
+  videoUrl?: string;
+  videoName?: string;
 
 
   tipeKonten?: 'surat' | 'info' | 'elementary_update';
