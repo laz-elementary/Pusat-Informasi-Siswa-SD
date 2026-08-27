@@ -1460,10 +1460,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       );
 
     setInfoVideoUrl(
-      existingVideo?.url || ''
+      info.videoUrl ||
+      existingVideo?.url ||
+      ''
     );
 
     setInfoVideoName(
+      info.videoName ||
       existingVideo?.name ||
       ''
     );
@@ -1522,6 +1525,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             infoContent.trim(),
           imageUrl:
             finalImageUrl,
+
+          videoUrl:
+            infoVideoUrl ||
+            undefined,
+
+          videoName:
+            infoVideoName ||
+            undefined,
 
           mediaItems:
             infoVideoUrl
@@ -1582,6 +1593,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             infoContent.trim(),
           imageUrl:
             finalImageUrl,
+
+          videoUrl:
+            infoVideoUrl ||
+            undefined,
+
+          videoName:
+            infoVideoName ||
+            undefined,
 
           mediaItems:
             infoVideoUrl
@@ -3370,87 +3389,91 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         {info.content || info.summary}
                       </p>
 
-                      {(info.imageUrl ||
-                        info.mediaItems?.some(
-                          (media) =>
-                            media.type === 'video'
-                        )) && (
-                        <div
-                          className={`mt-4 grid gap-3 ${
-                            info.imageUrl &&
-                            info.mediaItems?.some(
-                              (media) =>
-                                media.type === 'video'
-                            )
-                              ? 'grid-cols-1 lg:grid-cols-2'
-                              : 'grid-cols-1'
-                          }`}
-                        >
-                          {info.imageUrl && (
-                            <div className="rounded-xl overflow-hidden border border-slate-200 bg-white">
-                              <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
-                                <ImageIcon className="w-3.5 h-3.5 text-amber-700" />
-                                <span className="text-[11px] font-bold text-slate-600">
-                                  Flyer / Gambar
-                                </span>
-                              </div>
+                      {(() => {
+                        const videoUrl =
+                          info.videoUrl ||
+                          info.mediaItems?.find(
+                            (media) =>
+                              media.type === 'video'
+                          )?.url;
 
-                              <a
-                                href={info.imageUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block bg-slate-50"
-                              >
-                                <img
-                                  src={info.imageUrl}
-                                  alt={`Flyer ${info.title}`}
-                                  loading="lazy"
-                                  className="w-full max-h-[360px] object-contain"
-                                />
-                              </a>
-                            </div>
-                          )}
+                        const videoName =
+                          info.videoName ||
+                          info.mediaItems?.find(
+                            (media) =>
+                              media.type === 'video'
+                          )?.name ||
+                          'Video Informasi';
 
-                          {info.mediaItems
-                            ?.filter(
-                              (media) =>
-                                media.type ===
-                                'video'
-                            )
-                            .slice(0, 1)
-                            .map(
-                              (
-                                media,
-                                index
-                              ) => (
-                                <div
-                                  key={`${media.url}-${index}`}
-                                  className="rounded-xl overflow-hidden border border-slate-200 bg-white"
-                                >
-                                  <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
-                                    <Film className="w-3.5 h-3.5 text-blue-700" />
+                        if (
+                          !info.imageUrl &&
+                          !videoUrl
+                        ) {
+                          return null;
+                        }
 
-                                    <span className="text-[11px] font-bold text-slate-600">
-                                      Video Informasi
-                                    </span>
-
-                                    <span className="ml-auto inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                                      Tersimpan
-                                    </span>
-                                  </div>
-
-                                  <video
-                                    src={media.url}
-                                    controls
-                                    playsInline
-                                    preload="metadata"
-                                    className="w-full max-h-[360px] object-contain bg-black"
-                                  />
+                        return (
+                          <div
+                            className={`mt-4 grid gap-3 ${
+                              info.imageUrl &&
+                              videoUrl
+                                ? 'grid-cols-1 lg:grid-cols-2'
+                                : 'grid-cols-1'
+                            }`}
+                          >
+                            {info.imageUrl && (
+                              <div className="rounded-xl overflow-hidden border border-slate-200 bg-white">
+                                <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
+                                  <ImageIcon className="w-3.5 h-3.5 text-amber-700" />
+                                  <span className="text-[11px] font-bold text-slate-600">
+                                    Flyer / Gambar
+                                  </span>
                                 </div>
-                              )
+
+                                <a
+                                  href={info.imageUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block bg-slate-50"
+                                >
+                                  <img
+                                    src={info.imageUrl}
+                                    alt={`Flyer ${info.title}`}
+                                    loading="lazy"
+                                    className="w-full max-h-[360px] object-contain"
+                                  />
+                                </a>
+                              </div>
                             )}
-                        </div>
-                      )}
+
+                            {videoUrl && (
+                              <div className="rounded-xl overflow-hidden border border-slate-200 bg-white">
+                                <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
+                                  <Film className="w-3.5 h-3.5 text-blue-700" />
+
+                                  <span className="text-[11px] font-bold text-slate-600 truncate">
+                                    {videoName}
+                                  </span>
+
+                                  <span className="ml-auto inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                                    Tersimpan
+                                  </span>
+                                </div>
+
+                                <video
+                                  src={videoUrl}
+                                  controls
+                                  playsInline
+                                  preload="metadata"
+                                  className="w-full max-h-[360px] object-contain bg-black"
+                                >
+                                  Browser tidak mendukung pemutaran video.
+                                </video>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {info.gdriveLink && (
                         <a
