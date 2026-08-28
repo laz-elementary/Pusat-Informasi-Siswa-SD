@@ -1713,105 +1713,158 @@ export default function App() {
         {/* PORTAL INFORMASI ORANG TUA */}
         {activeView === 'letters' && (
           <div className="space-y-5">
-            {/* HIGHLIGHT INFO PENTING */}
-            {headerPinnedInfos.length > 0 && (() => {
-              const mainPinnedInfo =
-                headerPinnedInfos[0];
+            {/* HIGHLIGHT ELEMENTARY UPDATES */}
+            {elementaryUpdateCirculars.length > 0 && (() => {
+              const featuredElementaryUpdates =
+                elementaryUpdateCirculars
+                  .filter(
+                    (item) => item.isPinned
+                  )
+                  .sort(
+                    (a, b) =>
+                      new Date(
+                        b.publishDate
+                      ).getTime() -
+                      new Date(
+                        a.publishDate
+                      ).getTime()
+                  );
 
-              const otherPinnedCount =
-                Math.max(
-                  headerPinnedInfos.length - 1,
-                  0
-                );
+              const latestElementaryUpdates =
+                [...elementaryUpdateCirculars]
+                  .sort(
+                    (a, b) =>
+                      new Date(
+                        b.publishDate
+                      ).getTime() -
+                      new Date(
+                        a.publishDate
+                      ).getTime()
+                  );
+
+              const highlightedUpdate =
+                featuredElementaryUpdates[0] ||
+                latestElementaryUpdates[0];
+
+              if (!highlightedUpdate) {
+                return null;
+              }
+
+              const featuredMedia =
+                highlightedUpdate.mediaItems?.[0];
 
               return (
-                <section className="relative overflow-hidden rounded-2xl border border-amber-300 bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-sm">
-                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-amber-400" />
+                <section className="relative overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-emerald-600" />
 
-                  <div className="p-5 sm:p-6">
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-5">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-3">
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 text-slate-950 px-3 py-1 text-[10px] sm:text-xs font-extrabold uppercase tracking-wide">
-                            <Pin className="w-3.5 h-3.5" />
-                            Info Penting
+                  <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
+                    <div className="p-5 sm:p-6 flex flex-col justify-center">
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-1 text-[10px] sm:text-xs font-extrabold uppercase tracking-wide">
+                          <Newspaper className="w-3.5 h-3.5" />
+                          Elementary Updates
+                        </span>
+
+                        {highlightedUpdate.isPinned && (
+                          <span className="rounded-full bg-amber-100 border border-amber-200 text-amber-900 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide">
+                            Featured
                           </span>
+                        )}
 
-                          {mainPinnedInfo.publishDate && (
-                            <span className="text-[11px] sm:text-xs font-semibold text-slate-500">
-                              {new Date(
-                                `${mainPinnedInfo.publishDate}T00:00:00`
-                              ).toLocaleDateString(
-                                'id-ID',
-                                {
-                                  day: 'numeric',
-                                  month: 'long',
-                                  year: 'numeric',
-                                }
-                              )}
-                            </span>
-                          )}
-
-                          {otherPinnedCount > 0 && (
-                            <span className="rounded-full bg-white border border-amber-200 px-2.5 py-1 text-[10px] font-bold text-amber-800">
-                              +{otherPinnedCount} info penting lainnya
-                            </span>
-                          )}
-                        </div>
-
-                        <h2 className="text-xl sm:text-2xl font-black text-slate-950 leading-tight">
-                          {mainPinnedInfo.title}
-                        </h2>
-
-                        <p className="mt-2 text-sm sm:text-base text-slate-600 leading-relaxed line-clamp-3 whitespace-pre-line">
-                          {mainPinnedInfo.summary ||
-                            mainPinnedInfo.content}
-                        </p>
+                        {highlightedUpdate.publishDate && (
+                          <span className="text-[11px] sm:text-xs font-semibold text-slate-500">
+                            {new Date(
+                              `${highlightedUpdate.publishDate}T00:00:00`
+                            ).toLocaleDateString(
+                              'id-ID',
+                              {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                              }
+                            )}
+                          </span>
+                        )}
                       </div>
 
-                      <div className="shrink-0 flex lg:flex-col gap-2">
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-950 leading-tight">
+                        {highlightedUpdate.title}
+                      </h2>
+
+                      <p className="mt-2 text-sm sm:text-base text-slate-600 leading-relaxed line-clamp-3 whitespace-pre-line">
+                        {highlightedUpdate.summary ||
+                          highlightedUpdate.content}
+                      </p>
+
+                      <div className="mt-5 flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => {
                             setParentContentView(
-                              'info'
+                              'elementary_update'
                             );
                             handleOpenDetail(
-                              mainPinnedInfo
+                              highlightedUpdate
                             );
                           }}
-                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 px-5 py-3 text-sm font-extrabold shadow-sm transition-colors"
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-3 text-sm font-extrabold shadow-sm transition-colors"
                         >
-                          <Megaphone className="w-4 h-4" />
-                          Baca Informasi
+                          <Newspaper className="w-4 h-4" />
+                          Lihat Update
                         </button>
 
-                        {otherPinnedCount > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setParentContentView(
-                                'info'
-                              );
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setParentContentView(
+                              'elementary_update'
+                            );
 
-                              document
-                                .getElementById(
-                                  'portal-content-tabs'
-                                )
-                                ?.scrollIntoView({
-                                  behavior:
-                                    'smooth',
-                                  block:
-                                    'start',
-                                });
-                            }}
-                            className="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white hover:bg-amber-50 text-amber-900 px-4 py-2.5 text-xs font-bold transition-colors"
-                          >
-                            Lihat Info Lainnya
-                          </button>
-                        )}
+                            document
+                              .getElementById(
+                                'portal-content-tabs'
+                              )
+                              ?.scrollIntoView({
+                                behavior:
+                                  'smooth',
+                                block:
+                                  'start',
+                              });
+                          }}
+                          className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-800 px-4 py-2.5 text-xs font-bold transition-colors"
+                        >
+                          Semua Elementary Updates
+                        </button>
                       </div>
                     </div>
+
+                    {featuredMedia && (
+                      <div className="min-h-[220px] lg:min-h-full bg-slate-100 border-t lg:border-t-0 lg:border-l border-slate-200 overflow-hidden">
+                        {featuredMedia.type ===
+                        'video' ? (
+                          <video
+                            src={
+                              featuredMedia.url
+                            }
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="w-full h-full min-h-[220px] max-h-[360px] object-cover bg-black"
+                          />
+                        ) : (
+                          <img
+                            src={
+                              featuredMedia.url
+                            }
+                            alt={
+                              highlightedUpdate.title
+                            }
+                            loading="lazy"
+                            className="w-full h-full min-h-[220px] max-h-[360px] object-cover"
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
                 </section>
               );
