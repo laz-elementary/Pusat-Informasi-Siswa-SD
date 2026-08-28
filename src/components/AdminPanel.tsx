@@ -3050,6 +3050,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full md:w-auto">
           <button
+            type="button"
             onClick={() => {
               setActiveTab('updates');
               openFreshElementaryUpdateModal();
@@ -3169,6 +3170,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <button
+              type="button"
               onClick={
                 openFreshElementaryUpdateModal
               }
@@ -3222,22 +3224,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </span>
                         )}
 
-                        {info.imageUrl && (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-500">
-                            <ImageIcon className="w-3 h-3" />
-                            Flyer
-                          </span>
-                        )}
-
-                        {info.mediaItems?.some(
-                          (media) =>
-                            media.type === 'video'
-                        ) && (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-500">
-                            <Film className="w-3 h-3" />
-                            Video
-                          </span>
-                        )}
                       </div>
 
                       <h4 className="font-extrabold text-sm sm:text-base text-slate-950">
