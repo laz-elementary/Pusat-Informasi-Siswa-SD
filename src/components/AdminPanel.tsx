@@ -551,10 +551,92 @@ const readElementaryUpdateDraft =
         ELEMENTARY_UPDATE_DRAFT_STORAGE_KEY
       );
 
-      return raw
-        ? (JSON.parse(raw) as ElementaryUpdateDraftSnapshot)
-        : null;
-    } catch {
+      if (!raw) return null;
+
+      const parsed = JSON.parse(raw) as Partial<ElementaryUpdateDraftSnapshot>;
+
+      const safeExistingMedia = Array.isArray(
+        parsed.existingMedia
+      )
+        ? parsed.existingMedia
+            .filter(
+              (media: any) =>
+                media &&
+                typeof media === 'object' &&
+                typeof media.url === 'string' &&
+                media.url.trim() !== '' &&
+                (
+                  media.type === 'image' ||
+                  media.type === 'video'
+                )
+            )
+            .map((media: any) => ({
+              url: media.url,
+              type: media.type as 'image' | 'video',
+              name:
+                typeof media.name === 'string'
+                  ? media.name
+                  : undefined,
+              isDraftUpload:
+                Boolean(media.isDraftUpload),
+              storagePath:
+                typeof media.storagePath === 'string'
+                  ? media.storagePath
+                  : undefined,
+            }))
+        : [];
+
+      return {
+        isOpen: false,
+        editingUpdateId:
+          typeof parsed.editingUpdateId === 'string'
+            ? parsed.editingUpdateId
+            : null,
+        title:
+          typeof parsed.title === 'string'
+            ? parsed.title
+            : '',
+        content:
+          typeof parsed.content === 'string'
+            ? parsed.content
+            : '',
+        grades:
+          Array.isArray(parsed.grades) &&
+          parsed.grades.every(
+            (grade) =>
+              typeof grade === 'string'
+          )
+            ? parsed.grades
+            : ['Semua Kelas'],
+        publishDate:
+          typeof parsed.publishDate === 'string' &&
+          parsed.publishDate
+            ? parsed.publishDate
+            : new Date()
+                .toISOString()
+                .split('T')[0],
+        link:
+          typeof parsed.link === 'string'
+            ? parsed.link
+            : '',
+        isFeatured:
+          Boolean(parsed.isFeatured),
+        existingMedia: safeExistingMedia,
+      };
+    } catch (error) {
+      console.warn(
+        'Draft Elementary Updates lama diabaikan karena tidak valid:',
+        error
+      );
+
+      try {
+        window.localStorage.removeItem(
+          ELEMENTARY_UPDATE_DRAFT_STORAGE_KEY
+        );
+      } catch {
+        // ignore
+      }
+
       return null;
     }
   };
@@ -1682,9 +1764,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     );
 
   const [showElementaryUpdateModal, setShowElementaryUpdateModal] =
-    useState(
-      () => restoredElementaryUpdateDraft?.isOpen ?? false
-    );
+    useState(false);
 
   const [editingElementaryUpdate, setEditingElementaryUpdate] =
     useState<CircularLetter | null>(null);
@@ -1729,20 +1809,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       (
         restoredElementaryUpdateDraft?.existingMedia ??
         []
-      ).map((media, index) => ({
-        id: `existing-${index}-${media.url}`,
-        url: media.url,
-        previewUrl: media.url,
-        type: media.type,
-        name:
-          media.name ||
-          `Media ${index + 1}`,
-        isExisting: true,
-        isDraftUpload:
-          media.isDraftUpload ?? false,
-        storagePath:
-          media.storagePath,
-      }))
+      )
+        .filter(
+          (media) =>
+            Boolean(
+              media &&
+              media.url &&
+              (
+                media.type === 'image' ||
+                media.type === 'video'
+              )
+            )
+        )
+        .map((media, index) => ({
+          id: `existing-${index}-${media.url}`,
+          url: media.url,
+          previewUrl: media.url || '',
+          type: media.type,
+          name:
+            media.name ||
+            `Media ${index + 1}`,
+          isExisting: true,
+          isDraftUpload:
+            media.isDraftUpload ?? false,
+          storagePath:
+            media.storagePath,
+        }))
   );
 
   const [
@@ -1976,6 +2068,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       (item) => {
         if (
           !item.isExisting &&
+          typeof item.previewUrl === 'string' &&
           item.previewUrl.startsWith(
             'blob:'
           )
@@ -2290,6 +2383,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (
       removing &&
       !removing.isExisting &&
+      typeof removing.previewUrl === 'string' &&
       removing.previewUrl.startsWith(
         'blob:'
       )
@@ -2465,6 +2559,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } else {
       setUpdateGrades([...withoutSemua, grade]);
     }
+  };
+
+  const openFreshElementaryUpdateModal = () => {
+    // Bersihkan draft lokal lama agar form tidak crash
+    // akibat struktur draft versi sebelumnya.
+    try {
+      window.localStorage.removeItem(
+        ELEMENTARY_UPDATE_DRAFT_STORAGE_KEY
+      );
+    } catch {
+      // ignore
+    }
+
+    void clearElementaryMediaDraftFiles();
+
+    setEditingElementaryUpdate(null);
+    setUpdateTitle('');
+    setUpdateContent('');
+    setUpdateGrades(['Semua Kelas']);
+    setUpdatePublishDate(
+      new Date().toISOString().split('T')[0]
+    );
+    setUpdateLink('');
+    setUpdateFeatured(false);
+
+    setUpdateMediaItems((current) => {
+      current.forEach((item) => {
+        if (
+          typeof item.previewUrl === 'string' &&
+          item.previewUrl.startsWith('blob:')
+        ) {
+          try {
+            URL.revokeObjectURL(item.previewUrl);
+          } catch {
+            // ignore
+          }
+        }
+      });
+
+      return [];
+    });
+
+    setElementaryMediaUploading(false);
+    setShowElementaryUpdateModal(true);
   };
 
   const handleEditElementaryUpdate = (
@@ -2913,10 +3051,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full md:w-auto">
           <button
             onClick={() => {
-              // Jangan hapus draft yang sudah ada.
-              // Jika user kembali ke form, lanjutkan draft sebelumnya.
               setActiveTab('updates');
-              setShowElementaryUpdateModal(true);
+              openFreshElementaryUpdateModal();
             }}
             className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all cursor-pointer"
           >
@@ -3033,10 +3169,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <button
-              onClick={() => {
-                // Resume draft jika sebelumnya sudah mulai mengisi.
-                setShowElementaryUpdateModal(true);
-              }}
+              onClick={
+                openFreshElementaryUpdateModal
+              }
               className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-colors shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -4253,7 +4388,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 space-y-3">
                   {updateMediaItems.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {updateMediaItems.map(
+                      {updateMediaItems
+                        .filter(
+                          (media) =>
+                            media &&
+                            typeof media.previewUrl === 'string' &&
+                            (
+                              media.type === 'image' ||
+                              media.type === 'video'
+                            )
+                        )
+                        .map(
                         (media) => (
                           <div
                             key={media.id}
