@@ -587,7 +587,8 @@ const readElementaryUpdateDraft =
         : [];
 
       return {
-        isOpen: false,
+        isOpen:
+          parsed.isOpen === true,
         editingUpdateId:
           typeof parsed.editingUpdateId === 'string'
             ? parsed.editingUpdateId
@@ -1764,7 +1765,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     );
 
   const [showElementaryUpdateModal, setShowElementaryUpdateModal] =
-    useState(false);
+    useState(
+      () =>
+        restoredElementaryUpdateDraft?.isOpen ??
+        false
+    );
 
   const [editingElementaryUpdate, setEditingElementaryUpdate] =
     useState<CircularLetter | null>(null);
@@ -1952,8 +1957,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       existingMedia: updateMediaItems
         .filter(
           (item) =>
-            item.isExisting &&
-            item.url
+            Boolean(item.url)
         )
         .map((item) => ({
           url: item.url!,
@@ -1996,6 +2000,72 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     updateMediaItems,
   ]);
 
+  useEffect(() => {
+    if (
+      !showElementaryUpdateModal ||
+      typeof window === 'undefined'
+    ) {
+      return;
+    }
+
+    const persistBeforeLeaving = () => {
+      persistElementaryUpdateDraftNow(
+        updateMediaItems
+      );
+    };
+
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState ===
+        'hidden'
+      ) {
+        persistBeforeLeaving();
+      }
+    };
+
+    window.addEventListener(
+      'pagehide',
+      persistBeforeLeaving
+    );
+
+    window.addEventListener(
+      'beforeunload',
+      persistBeforeLeaving
+    );
+
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibilityChange
+    );
+
+    return () => {
+      window.removeEventListener(
+        'pagehide',
+        persistBeforeLeaving
+      );
+
+      window.removeEventListener(
+        'beforeunload',
+        persistBeforeLeaving
+      );
+
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange
+      );
+    };
+  }, [
+    showElementaryUpdateModal,
+    editingElementaryUpdate,
+    updateTitle,
+    updateContent,
+    updateGrades,
+    updatePublishDate,
+    updateLink,
+    updateFeatured,
+    updateMediaItems,
+  ]);
+
   const clearElementaryUpdateDraft = () => {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(
@@ -2006,9 +2076,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     void clearElementaryMediaDraftFiles();
   };
 
-  const persistElementaryUpdateDraftNow = (
+  function persistElementaryUpdateDraftNow(
     mediaItems: ElementaryMediaDraftItem[]
-  ) => {
+  ) {
     if (
       typeof window === 'undefined'
     ) {
@@ -2051,7 +2121,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       ELEMENTARY_UPDATE_DRAFT_STORAGE_KEY,
       JSON.stringify(snapshot)
     );
-  };
+  }
 
   const resetElementaryUpdateForm = () => {
     setEditingElementaryUpdate(null);
@@ -2602,6 +2672,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     });
 
     setElementaryMediaUploading(false);
+
+    const freshSnapshot:
+      ElementaryUpdateDraftSnapshot = {
+      isOpen: true,
+      editingUpdateId: null,
+      title: '',
+      content: '',
+      grades: ['Semua Kelas'],
+      publishDate:
+        new Date()
+          .toISOString()
+          .split('T')[0],
+      link: '',
+      isFeatured: false,
+      existingMedia: [],
+    };
+
+    try {
+      window.localStorage.setItem(
+        ELEMENTARY_UPDATE_DRAFT_STORAGE_KEY,
+        JSON.stringify(
+          freshSnapshot
+        )
+      );
+    } catch {
+      // ignore
+    }
+
     setShowElementaryUpdateModal(true);
   };
 
@@ -2642,6 +2740,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         })
       )
     );
+
+    try {
+      window.localStorage.setItem(
+        ELEMENTARY_UPDATE_DRAFT_STORAGE_KEY,
+        JSON.stringify({
+          isOpen: true,
+          editingUpdateId:
+            update.id,
+          title:
+            update.title || '',
+          content:
+            update.content ||
+            update.summary ||
+            '',
+          grades:
+            update.gradeLevels?.length > 0
+              ? update.gradeLevels
+              : ['Semua Kelas'],
+          publishDate:
+            update.publishDate ||
+            new Date()
+              .toISOString()
+              .split('T')[0],
+          link:
+            update.gdriveLink || '',
+          isFeatured:
+            update.isPinned ??
+            false,
+          existingMedia:
+            update.mediaItems ??
+            [],
+        } satisfies ElementaryUpdateDraftSnapshot)
+      );
+    } catch {
+      // ignore
+    }
 
     setShowElementaryUpdateModal(true);
   };
