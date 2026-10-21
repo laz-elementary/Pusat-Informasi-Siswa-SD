@@ -1910,33 +1910,11 @@ export default function App() {
               </div>
             </section>
 
-            {/* Sub menu: Info Terkini / Elementary Updates / Surat Edaran */}
+            {/* Sub menu: Elementary Updates / Info Terkini / Surat Edaran */}
             <div
               id="portal-content-tabs"
               className="bg-white border border-slate-200 rounded-2xl p-1.5 shadow-xs flex gap-1.5 overflow-x-auto scroll-mt-24"
             >
-              <button
-                type="button"
-                onClick={() => setParentContentView('info')}
-                className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                  parentContentView === 'info'
-                    ? 'bg-amber-400 text-slate-950 shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Megaphone className="w-4 h-4" />
-                <span>Info Terkini</span>
-                <span
-                  className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-                    parentContentView === 'info'
-                      ? 'bg-slate-950/10 text-slate-800'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  {infoCirculars.length}
-                </span>
-              </button>
-
               <button
                 type="button"
                 onClick={() => setParentContentView('elementary_update')}
@@ -1956,6 +1934,28 @@ export default function App() {
                   }`}
                 >
                   {elementaryUpdateCirculars.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setParentContentView('info')}
+                className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                  parentContentView === 'info'
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Megaphone className="w-4 h-4" />
+                <span>Info Terkini</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                    parentContentView === 'info'
+                      ? 'bg-slate-950/10 text-slate-800'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {infoCirculars.length}
                 </span>
               </button>
 
